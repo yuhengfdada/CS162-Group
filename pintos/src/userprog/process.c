@@ -463,10 +463,68 @@ setup_stack (void **esp, char *cmdline)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 20;
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
+
+  /* Find the number of tokens on the command line */
+  char *save_ptr;
+  char *cmdline_copy = palloc_get_page(0);
+  strlcpy(cmdline_copy, cmdline, PGSIZE);
+  int num_tokens = 0;
+  char *token = strtok_r(cmdline_copy, " ", &save_ptr);
+  while (token != NULL) {
+    token = strtok_r(NULL, " ", &save_ptr);
+    num_tokens += 1;
+  }
+  palloc_free_page(cmdline_copy);
+
+  /* Reset variables that will be reused. */
+  uint8_t *ptr_to_args[num_tokens];
+  save_ptr = NULL;
+  num_tokens = 0;
+
+  /* Push arguments onto the stack. First argument on top, last argument at the bottom. */
+  uint8_t *byte_esp = (uint8_t *)esp; 
+  int token_length;
+  token = strtok_r(cmdline, " ", &save_ptr);
+  while (token != NULL) {
+    token_length = strlen(token) + 1;
+    byte_esp -= token_length;
+    strlcpy((char *)byte_esp, token, token_length);
+    ptr_to_args[num_tokens] = byte_esp;
+    token = strtok_r(NULL, " ", &save_ptr);
+    num_tokens += 1;
+  };
+
+  /* Add padding to make the stack word-aligned. */
+  int offset = (int)byte_esp % 4;
+  byte_esp -= offset;
+
+  /* Push pointers to arguments onto the stack. */
+  uint32_t *word_esp = (uint32_t *)byte_esp;
+  word_esp -= 1;
+  word_esp[0] = (uint32_t)0;
+  for (int i = 0; i < num_tokens; i += 1) {
+    word_esp -= 1;
+    word_esp[0] = (uint32_t)ptr_to_args[num_tokens - i -1];
+  };
+
+  /* Push argv onto the stack. */
+  word_esp -= 1;
+  word_esp[0] = (uint32_t)(word_esp + 1);
+
+  /* Push argc onto the stack. */
+  word_esp -= 1;
+  word_esp[0] = (uint32_t)(num_tokens);
+
+  /* Push dummy return address onto the stack. */
+  word_esp -= 1;
+  word_esp[0] = (uint32_t)0;
+
+  *esp = (void *)word_esp;
+
   return success;
 }
 
