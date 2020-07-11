@@ -41,23 +41,21 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  /* Make a second copy of FILE_NAME for parsing. */
-  char *fn_copy2;
-  fn_copy2 = palloc_get_page(0);
-  if (fn_copy2 == NULL)
+  char *fn_copy_2;
+  fn_copy_2 = palloc_get_page(0);
+  if (fn_copy == NULL)
     return TID_ERROR;
-  strlcpy(fn_copy, file_name, PGSIZE);
+  strlcpy(fn_copy_2, file_name, PGSIZE);
 
-  /* Parse executable name. */
-  char *executable_name;
   char *save_ptr;
-  executable_name = strtok_r(fn_copy2, " ", &save_ptr);
+  char *exec_name = strtok_r(fn_copy_2, " ", &save_ptr);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (executable_name, PRI_DEFAULT, start_process, fn_copy);
-  palloc_free_page(fn_copy2);
+  tid = thread_create (exec_name, PRI_DEFAULT, start_process, fn_copy);
+  palloc_free_page(fn_copy_2);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
+
   return tid;
 }
 
@@ -213,7 +211,7 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp, char *cmdline);
+static bool setup_stack (void **esp);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
@@ -226,11 +224,6 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 bool
 load (const char *file_name, void (**eip) (void), void **esp)
 {
-  char *file_name1 = palloc_get_page(0);
-  strlcpy(file_name1, file_name, PGSIZE);
-  char *file_name2 = palloc_get_page(0);
-  strlcpy(file_name2, file_name, PGSIZE);
-
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -245,11 +238,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  char *save_ptr;
-  file = filesys_open(strtok_r(file_name1, " ", &save_ptr));
+  file = filesys_open (file_name);
   if (file == NULL)
     {
-      printf ("load: %s: open failed\n", file_name1);
+      printf ("load: %s: open failed\n", file_name);
       goto done;
     }
 
@@ -326,7 +318,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp, file_name2))
+  if (!setup_stack (esp))
     goto done;
 
   /* Start address. */
@@ -451,7 +443,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp, char *cmdline)
+setup_stack (void **esp)
 {
   uint8_t *kpage;
   bool success = false;
@@ -461,7 +453,7 @@ setup_stack (void **esp, char *cmdline)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        *esp = PHYS_BASE - 20;
       else
         palloc_free_page (kpage);
     }
