@@ -519,6 +519,10 @@ setup_stack (void **esp, char *cmdline)
   word_esp -= 1;
   word_esp[0] = (uint32_t)(num_tokens);
 
+  /* Add padding to make the stack 16-byte aligned. */
+  offset = (int)word_esp % 4;
+  word_esp -= offset;
+
   /* Push dummy return address onto the stack. */
   word_esp -= 1;
   word_esp[0] = (uint32_t)0;
