@@ -41,18 +41,8 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
-  char *fn_copy_2;
-  fn_copy_2 = palloc_get_page(0);
-  if (fn_copy == NULL)
-    return TID_ERROR;
-  strlcpy(fn_copy_2, file_name, PGSIZE);
-
-  char *save_ptr;
-  char *exec_name = strtok_r(fn_copy_2, " ", &save_ptr);
-
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (exec_name, PRI_DEFAULT, start_process, fn_copy);
-  palloc_free_page(fn_copy_2);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
 
@@ -472,6 +462,7 @@ setup_stack (void **esp, char *cmdline)
   char *save_ptr;
   char *cmdline_copy = palloc_get_page(0);
   strlcpy(cmdline_copy, cmdline, PGSIZE);
+
   int num_tokens = 0;
   char *token = strtok_r(cmdline_copy, " ", &save_ptr);
   while (token != NULL) {
@@ -486,8 +477,8 @@ setup_stack (void **esp, char *cmdline)
   num_tokens = 0;
 
   /* Push arguments onto the stack. First argument on top, last argument at the bottom. */
-  uint8_t *byte_esp = (uint8_t *)esp; 
-  int token_length;
+  uint8_t *byte_esp = (uint8_t *)(*esp); 
+  size_t token_length;
   token = strtok_r(cmdline, " ", &save_ptr);
   while (token != NULL) {
     token_length = strlen(token) + 1;
@@ -519,8 +510,9 @@ setup_stack (void **esp, char *cmdline)
   word_esp -= 1;
   word_esp[0] = (uint32_t)(num_tokens);
 
-  /* Add padding to make the stack 16-byte aligned. */
-  offset = (int)word_esp % 4;
+  // /* Add padding to make the stack 16-byte aligned. */
+  offset = (int)word_esp % 16;
+  offset = offset >> 2;
   word_esp -= offset;
 
   /* Push dummy return address onto the stack. */
@@ -528,7 +520,6 @@ setup_stack (void **esp, char *cmdline)
   word_esp[0] = (uint32_t)0;
 
   *esp = (void *)word_esp;
-
   return success;
 }
 
