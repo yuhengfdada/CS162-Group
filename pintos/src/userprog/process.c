@@ -497,9 +497,14 @@ static uint32_t *push_arguments(void **esp, char *cmdline) {
     num_tokens += 1;
   };
 
-  /* Add padding to make the stack word-aligned. */
+  /* Add padding to make the stack word-aligned to the top. */
   int offset = (int)byte_esp % 4;
   byte_esp -= offset;
+
+  /* Add padding to make the stack 16-byte-aligned to the bottom. */
+  byte_esp -= (num_tokens + 1 + 2) * 4;
+  offset = (int)byte_esp % 16;
+  byte_esp  = byte_esp + (num_tokens + 1 + 2) * 4 - offset;
 
   /* Push addresses arguments onto the stack. */
   uint32_t *word_esp = (uint32_t *)byte_esp;
@@ -515,11 +520,6 @@ static uint32_t *push_arguments(void **esp, char *cmdline) {
   word_esp[0] = (uint32_t)(word_esp + 1);
   word_esp -= 1;
   word_esp[0] = (uint32_t)(num_tokens);
-
-  // /* Add padding to make the stack 16-byte aligned. */
-  offset = (int)word_esp % 16;
-  offset = offset >> 2;
-  word_esp -= offset;
 
   /* Push dummy return address onto the stack. */
   word_esp -= 1;
