@@ -460,7 +460,7 @@ setup_stack (void **esp, char *cmdline)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE - 20;
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
@@ -505,32 +505,39 @@ static uint32_t *push_arguments(void **esp, char *cmdline) {
   };
 
   /* Add padding to make the stack word-aligned to the top. */
-  int offset = (int)byte_esp % 4;
-  byte_esp -= offset;
+  int offset = (uint32_t)byte_esp % 4;
+  for (int j = 0; j < offset; j += 1) {
+    byte_esp -= 1;
+    *byte_esp = (uint8_t)0;
+  }
 
   /* Add padding to make the stack 16-byte-aligned to the bottom. */
   byte_esp -= (num_tokens + 1 + 2) * 4;
-  offset = (int)byte_esp % 16;
-  byte_esp  = byte_esp + (num_tokens + 1 + 2) * 4 - offset;
+  offset = (uint32_t)byte_esp % 16;
+  byte_esp  += (num_tokens + 1 + 2) * 4;
+  for (int k = 0; k < offset; k += 1) {
+    byte_esp -= 1;
+    *byte_esp = (uint8_t)0;
+  }
 
   /* Push addresses of arguments onto the stack. */
   uint32_t *word_esp = (uint32_t *)byte_esp;
   word_esp -= 1;
-  word_esp[0] = (uint32_t)0;
+  *word_esp = (uint32_t)0;
   for (int i = 0; i < num_tokens; i += 1) {
     word_esp -= 1;
-    word_esp[0] = ptr_to_args[num_tokens - i -1];
+    *word_esp = (uint32_t)ptr_to_args[num_tokens - i -1];
   };
 
   /* Push argv and argc onto the stack. */
   word_esp -= 1;
-  word_esp[0] = (uint32_t)(word_esp + 1);
+  *word_esp = (uint32_t)(word_esp + 1);
   word_esp -= 1;
-  word_esp[0] = (uint32_t)(num_tokens);
+  *word_esp = (uint32_t)(num_tokens);
 
   /* Push dummy return address onto the stack. */
   word_esp -= 1;
-  word_esp[0] = (uint32_t)0;
+  *word_esp = (uint32_t)0;
 
   return word_esp;
 }
