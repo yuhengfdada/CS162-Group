@@ -45,6 +45,7 @@ process_execute (const char *file_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
+
   return tid;
 }
 
@@ -200,11 +201,12 @@ struct Elf32_Phdr
 #define PF_W 2          /* Writable. */
 #define PF_R 4          /* Readable. */
 
-static bool setup_stack (void **esp);
+static bool setup_stack (void **esp, char *cmdline);
 static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
+static uint32_t *push_arguments(void **esp, char *cmdline);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -213,6 +215,11 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
 bool
 load (const char *file_name, void (**eip) (void), void **esp)
 {
+  char *fn_copy = palloc_get_page(0);
+  strlcpy(fn_copy, file_name, PGSIZE);
+  char *fn_copy_2 = palloc_get_page(0);
+  strlcpy(fn_copy_2, file_name, PGSIZE);
+
   struct thread *t = thread_current ();
   struct Elf32_Ehdr ehdr;
   struct file *file = NULL;
@@ -227,7 +234,8 @@ load (const char *file_name, void (**eip) (void), void **esp)
   process_activate ();
 
   /* Open executable file. */
-  file = filesys_open (file_name);
+  char *save_ptr;
+  file = filesys_open(strtok_r(fn_copy, " ", &save_ptr));
   if (file == NULL)
     {
       printf ("load: %s: open failed\n", file_name);
@@ -307,7 +315,7 @@ load (const char *file_name, void (**eip) (void), void **esp)
     }
 
   /* Set up stack. */
-  if (!setup_stack (esp))
+  if (!setup_stack (esp, fn_copy_2))
     goto done;
 
   /* Start address. */
@@ -318,6 +326,10 @@ load (const char *file_name, void (**eip) (void), void **esp)
  done:
   /* We arrive here whether the load is successful or not. */
   file_close (file);
+
+  palloc_free_page(fn_copy);
+  palloc_free_page(fn_copy_2);
+
   return success;
 }
 
@@ -432,7 +444,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
 static bool
-setup_stack (void **esp)
+setup_stack (void **esp, char *cmdline)
 {
   uint8_t *kpage;
   bool success = false;
@@ -446,7 +458,74 @@ setup_stack (void **esp)
       else
         palloc_free_page (kpage);
     }
+
+  *esp = (void*)push_arguments(esp, cmdline);
   return success;
+}
+
+/* A helper function that helps push arguments onto the stack. */
+static uint32_t *push_arguments(void **esp, char *cmdline) {
+  /* Find the number of tokens on the command line */
+  char *save_ptr;
+  char *cmdline_copy = palloc_get_page(0);
+  strlcpy(cmdline_copy, cmdline, PGSIZE);
+  int num_tokens = 0;
+  char *token = strtok_r(cmdline_copy, " ", &save_ptr);
+  while (token != NULL) {
+    token = strtok_r(NULL, " ", &save_ptr);
+    num_tokens += 1;
+  }
+  palloc_free_page(cmdline_copy);
+
+  /* Reset variables that will be reused. */
+  save_ptr = NULL;
+  num_tokens = 0;
+
+  /* Declared an array to store addresses of arguments. */
+  uint8_t *ptr_to_args[num_tokens];
+
+  /* Push arguments onto the stack. First argument on top, last argument at the bottom. */
+  uint8_t *byte_esp = (uint8_t *)(*esp); 
+  size_t token_length;
+  token = strtok_r(cmdline, " ", &save_ptr);
+  while (token != NULL) {
+    token_length = strlen(token) + 1;
+    byte_esp -= token_length;
+    strlcpy((char *)byte_esp, token, token_length);
+    ptr_to_args[num_tokens] = byte_esp;
+    token = strtok_r(NULL, " ", &save_ptr);
+    num_tokens += 1;
+  };
+
+  /* Add padding to make the stack word-aligned. */
+  int offset = (int)byte_esp % 4;
+  byte_esp -= offset;
+
+  /* Push addresses arguments onto the stack. */
+  uint32_t *word_esp = (uint32_t *)byte_esp;
+  word_esp -= 1;
+  word_esp[0] = (uint32_t)0;
+  for (int i = 0; i < num_tokens; i += 1) {
+    word_esp -= 1;
+    word_esp[0] = (uint32_t)ptr_to_args[num_tokens - i -1];
+  };
+
+  /* Push argv and argc onto the stack. */
+  word_esp -= 1;
+  word_esp[0] = (uint32_t)(word_esp + 1);
+  word_esp -= 1;
+  word_esp[0] = (uint32_t)(num_tokens);
+
+  // /* Add padding to make the stack 16-byte aligned. */
+  offset = (int)word_esp % 16;
+  offset = offset >> 2;
+  word_esp -= offset;
+
+  /* Push dummy return address onto the stack. */
+  word_esp -= 1;
+  word_esp[0] = (uint32_t)0;
+
+  return word_esp;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
