@@ -471,6 +471,7 @@ setup_stack (void **esp, char *cmdline)
 
 /* A helper function that helps push arguments onto the stack. */
 static uint32_t *push_arguments(void **esp, char *cmdline) {
+
   /* Find the number of tokens on the command line */
   char *save_ptr;
   char *cmdline_copy = palloc_get_page(0);
@@ -483,12 +484,12 @@ static uint32_t *push_arguments(void **esp, char *cmdline) {
   }
   palloc_free_page(cmdline_copy);
 
+  /* Declared an array to store addresses of arguments. */
+  uint32_t *ptr_to_args[num_tokens];
+
   /* Reset variables that will be reused. */
   save_ptr = NULL;
   num_tokens = 0;
-
-  /* Declared an array to store addresses of arguments. */
-  uint8_t *ptr_to_args[num_tokens];
 
   /* Push arguments onto the stack. First argument on top, last argument at the bottom. */
   uint8_t *byte_esp = (uint8_t *)(*esp); 
@@ -498,7 +499,7 @@ static uint32_t *push_arguments(void **esp, char *cmdline) {
     token_length = strlen(token) + 1;
     byte_esp -= token_length;
     strlcpy((char *)byte_esp, token, token_length);
-    ptr_to_args[num_tokens] = byte_esp;
+    ptr_to_args[num_tokens] = (uint32_t *)byte_esp;
     token = strtok_r(NULL, " ", &save_ptr);
     num_tokens += 1;
   };
@@ -512,13 +513,13 @@ static uint32_t *push_arguments(void **esp, char *cmdline) {
   offset = (int)byte_esp % 16;
   byte_esp  = byte_esp + (num_tokens + 1 + 2) * 4 - offset;
 
-  /* Push addresses arguments onto the stack. */
+  /* Push addresses of arguments onto the stack. */
   uint32_t *word_esp = (uint32_t *)byte_esp;
   word_esp -= 1;
   word_esp[0] = (uint32_t)0;
   for (int i = 0; i < num_tokens; i += 1) {
     word_esp -= 1;
-    word_esp[0] = (uint32_t)ptr_to_args[num_tokens - i -1];
+    word_esp[0] = ptr_to_args[num_tokens - i -1];
   };
 
   /* Push argv and argc onto the stack. */
