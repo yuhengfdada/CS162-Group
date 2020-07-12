@@ -206,6 +206,7 @@ static bool validate_segment (const struct Elf32_Phdr *, struct file *);
 static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
                           uint32_t read_bytes, uint32_t zero_bytes,
                           bool writable);
+static uint32_t *push_arguments(void **esp, char *cmdline);
 
 /* Loads an ELF executable from FILE_NAME into the current thread.
    Stores the executable's entry point into *EIP
@@ -458,11 +459,16 @@ setup_stack (void **esp, char *cmdline)
         palloc_free_page (kpage);
     }
 
+  *esp = (void*)push_arguments(esp, cmdline);
+  return success;
+}
+
+/* A helper function that helps push arguments onto the stack. */
+static uint32_t *push_arguments(void **esp, char *cmdline) {
   /* Find the number of tokens on the command line */
   char *save_ptr;
   char *cmdline_copy = palloc_get_page(0);
   strlcpy(cmdline_copy, cmdline, PGSIZE);
-
   int num_tokens = 0;
   char *token = strtok_r(cmdline_copy, " ", &save_ptr);
   while (token != NULL) {
@@ -472,9 +478,11 @@ setup_stack (void **esp, char *cmdline)
   palloc_free_page(cmdline_copy);
 
   /* Reset variables that will be reused. */
-  uint8_t *ptr_to_args[num_tokens];
   save_ptr = NULL;
   num_tokens = 0;
+
+  /* Declared an array to store addresses of arguments. */
+  uint8_t *ptr_to_args[num_tokens];
 
   /* Push arguments onto the stack. First argument on top, last argument at the bottom. */
   uint8_t *byte_esp = (uint8_t *)(*esp); 
@@ -493,7 +501,7 @@ setup_stack (void **esp, char *cmdline)
   int offset = (int)byte_esp % 4;
   byte_esp -= offset;
 
-  /* Push pointers to arguments onto the stack. */
+  /* Push addresses arguments onto the stack. */
   uint32_t *word_esp = (uint32_t *)byte_esp;
   word_esp -= 1;
   word_esp[0] = (uint32_t)0;
@@ -502,11 +510,9 @@ setup_stack (void **esp, char *cmdline)
     word_esp[0] = (uint32_t)ptr_to_args[num_tokens - i -1];
   };
 
-  /* Push argv onto the stack. */
+  /* Push argv and argc onto the stack. */
   word_esp -= 1;
   word_esp[0] = (uint32_t)(word_esp + 1);
-
-  /* Push argc onto the stack. */
   word_esp -= 1;
   word_esp[0] = (uint32_t)(num_tokens);
 
@@ -519,8 +525,7 @@ setup_stack (void **esp, char *cmdline)
   word_esp -= 1;
   word_esp[0] = (uint32_t)0;
 
-  *esp = (void *)word_esp;
-  return success;
+  return word_esp;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel
