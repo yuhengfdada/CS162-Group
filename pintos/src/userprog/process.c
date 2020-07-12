@@ -43,8 +43,18 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  /* Make another copy of FILE_NAME so we can get the executable name. */
+  char *fn_copy2 = palloc_get_page(0);
+  if (fn_copy == NULL)
+    return TID_ERROR;
+  strlcpy(fn_copy2, file_name, PGSIZE);
+
+  char *save_ptr;
+  char *executable = strtok_r(fn_copy2, " ", &save_ptr);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (executable, PRI_DEFAULT, start_process, fn_copy);
+  palloc_free_page(fn_copy2);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
   else{
