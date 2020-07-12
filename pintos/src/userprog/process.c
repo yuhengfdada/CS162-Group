@@ -20,8 +20,10 @@
 #include "threads/vaddr.h"
 
 static struct semaphore temporary;
+//struct semaphore wait_load;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -45,7 +47,11 @@ process_execute (const char *file_name)
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
     palloc_free_page (fn_copy);
-
+  else{
+    
+    //sema_init (&wait_load,0);
+    //sema_down (&wait_load);
+  }
   return tid;
 }
 
@@ -454,7 +460,7 @@ setup_stack (void **esp, char *cmdline)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-        *esp = PHYS_BASE;
+        *esp = PHYS_BASE - 20;
       else
         palloc_free_page (kpage);
     }

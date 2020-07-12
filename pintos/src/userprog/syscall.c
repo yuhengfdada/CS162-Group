@@ -25,6 +25,35 @@ syscall_handler (struct intr_frame *f UNUSED)
    */
 
   /* printf("System call number: %d\n", args[0]); */
+  if (args[0] == SYS_PRACTICE) //lib/user/syscall-nr.h
+  {
+    f->eax = ++args[1];
+  }
+
+  if (args[0] == SYS_HALT){
+    shutdown_power_off();
+  }
+/*
+  if (args[0] == SYS_EXEC){
+    char *file = (char *)args[1];
+    tid_t tid = process_execute(file);
+    if(tid == -1) f->eax = -1;
+    else f->eax = tid;
+  }
+*/
+  if (args[0] == SYS_WAIT){
+    
+  }
+
+  if (args[0] == SYS_WRITE){
+    int fd = args[1];
+    char *buffer = args[2];
+    int size = args[3];
+    if (fd == 1) {
+      putbuf(buffer,size);
+      f->eax = size;
+    }
+  }
 
   if (args[0] == SYS_EXIT)
     {
