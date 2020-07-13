@@ -87,8 +87,9 @@ struct wait_status{
     tid_t child_pid;
     int exit_code;
     int ref_count;
-    struct semaphore exited;
-    struct lock ref_count_lock;
+    bool waited;              //prevent parent wait twice
+    struct semaphore sema;
+    struct lock lock;
     struct list_elem elem;
 /*Use a double linked list(list.c) to keep track of all child processes. */
 };
