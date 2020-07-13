@@ -19,8 +19,6 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 
-static struct semaphore temporary;
-//struct semaphore wait_load;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
@@ -35,7 +33,6 @@ process_execute (const char *file_name)// file_name-> "[exe_name] [argv...]\n"
   char *fn_copy;
   tid_t tid;
 
-  sema_init (&temporary, 0);
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   fn_copy = palloc_get_page (0);
@@ -118,20 +115,75 @@ start_process (void *load_info_)
 int
 process_wait (tid_t child_tid UNUSED)
 {
-  sema_down (&temporary);
-  return 0;
+  struct thread* current = thread_current();
+  struct wait_status* child = NULL;
+  struct wait_status* temp = NULL;
+  struct list_elem *e;
+  /* search for child wait_status block in list */
+  for(e  = list_begin(&(current->child_wait_status));
+      e != list_end(&(current->child_wait_status));
+      e  = list_next(e)){
+    temp = list_entry(e, struct wait_status, elem);
+    if(temp->child_pid == child_tid){
+      child = temp;
+      break;
+    }
+  }
+
+  if(child == NULL || child->waited == true){
+    return -1;
+  }
+  
+  child->waited = true;
+  sema_down (&(child->sema));
+  return child->exit_code;
 }
 
-/* Free the current process's resources. */
+/* Free the current process's resources. whenever enter this function, the process is considered to be dead */
 void
 process_exit (void)
 {
-  struct thread *cur = thread_current ();
-  uint32_t *pd;
+  struct thread* current = thread_current ();
+
+  /* deal with wait_status */
+  /* I am child process, deal with parent*/
+  lock_acquire(&(current->self_wait_status_t->lock));
+  (current->self_wait_status_t->ref_count)--;
+  lock_release(&(current->self_wait_status_t->lock));
+  if(current->self_wait_status_t->ref_count == 0){
+    //parent already exited
+    free(current->self_wait_status_t);
+  }else{
+    //parent not exited yet
+    //exit_code already stored by inturrupt handler
+    sema_up(&(current->self_wait_status_t->sema));
+  }
+  /* I am parent process, deal with child list */
+  struct wait_status* to_free[list_size(&(current->child_wait_status))];
+  int i = 0;
+  struct wait_status* temp;
+  /* walk through and mark to free blocks */
+  for(struct list_elem* e  = list_begin(&(current->child_wait_status));
+      e != list_end(&(current->child_wait_status));
+      e  = list_next(e))
+  {
+    temp = list_entry(e, struct wait_status, elem);
+    lock_acquire(&(temp->lock));
+    (temp->ref_count)--;
+    lock_release(&(temp->lock));
+    if(temp->ref_count == 0){
+      to_free[i++] = temp;
+    }
+  }
+  for(int j = 0; j < i; j++){
+    free(to_free[j]);
+  }
+
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
-  pd = cur->pagedir;
+  uint32_t *pd;
+  pd = current->pagedir;
   if (pd != NULL)
     {
       /* Correct ordering here is crucial.  We must set
@@ -141,11 +193,10 @@ process_exit (void)
          directory before destroying the process's page
          directory, or our active page directory will be one
          that's been freed (and cleared). */
-      cur->pagedir = NULL;
+      current->pagedir = NULL;
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
-  sema_up (&temporary);
 }
 
 /* Sets up the CPU for running user code in the current

@@ -70,6 +70,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+static void init_wait_status (struct thread *t);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -182,6 +183,7 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
+  init_wait_status(t);
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -202,6 +204,23 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   return tid;
+}
+
+/* init wait status struct for child thread t, and
+   add to parent's child list. */
+static void
+init_wait_status (struct thread *t)//called in 
+{
+  t->self_wait_status_t = malloc (sizeof (struct wait_status));
+  t->self_wait_status_t->exit_code = 0;
+  t->self_wait_status_t->ref_count = 2;
+  t->self_wait_status_t->child_pid = t->tid;
+  t->self_wait_status_t->waited = false;
+
+  lock_init (&(t->self_wait_status_t->lock));
+  sema_init (&(t->self_wait_status_t->sema), 0);
+  struct thread *parent = thread_current ();
+  list_push_back (&(parent->child_wait_status), &(t->self_wait_status_t->elem));
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
