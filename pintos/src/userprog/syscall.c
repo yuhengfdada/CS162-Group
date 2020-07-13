@@ -10,6 +10,7 @@
 #include "threads/synch.h"
 #include "devices/shutdown.h"
 #include "devices/input.h"
+#include "filesys/file.h"
 
 
 static void syscall_handler (struct intr_frame *);
@@ -26,6 +27,10 @@ static void syscall_exec(struct intr_frame * f);
 static void syscall_wait(struct intr_frame * f);
 static void syscall_exit(struct intr_frame * f);
 
+//Task 3 syscalls
+static void syscall_close(struct intr_frame * f);
+static void syscall_open(struct intr_frame * f);
+
 static void syscall_write(struct intr_frame * f);
 
 
@@ -39,12 +44,17 @@ syscall_init (void)
   syscalls[SYS_WAIT]     = syscall_wait;
   syscalls[SYS_EXIT]     = syscall_exit;
   syscalls[SYS_WRITE]    = syscall_write;
+  // Task 3 syscalls
+  syscalls[SYS_CLOSE]    = syscall_close;
+  syscalls[SYS_OPEN]     = syscall_open;
+
+
 }
 
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
-  
+
   uint32_t* args = ((uint32_t*) f->esp);
   if(!validate(args,0)){//||!validate_string((void *)args[1])){
     //f->eax = -1;
@@ -57,7 +67,7 @@ syscall_handler (struct intr_frame *f UNUSED)
    * when debugging. It will cause tests to fail, however, so you should not
    * include it in your final submission.
    */
-  // printf("System call number: %d\n", args[0]); 
+  // printf("System call number: %d\n", args[0]);
   (*syscalls[(int)args[0]])(f);
 }
 
@@ -118,6 +128,26 @@ static void syscall_write(struct intr_frame * f)
   }
 }
 
+static void syscall_open(struct intr_frame * f){
+  uint32_t* args = ((uint32_t*) f->esp);
+  struct inode *in = NULL;
+  int fd = args[1];
+  if (fd == 1){
+    in = (struct inode *)args[1];
+  }
+  file_open(in);
+}
+
+static void syscall_close(struct intr_frame * f){
+  uint32_t* args = ((uint32_t*) f->esp);
+  struct file *file = NULL;
+  int fd = args[1];
+  if (fd == 1){
+    file = (struct file *) args[1];
+  }
+  file_close(file);
+}
+
 int exception_exit (int exit_code){
       thread_current ()-> self_wait_status_t -> exit_code = exit_code;
       printf ("%s: exit(%d)\n", &thread_current ()->name, exit_code);
@@ -131,12 +161,12 @@ bool validate (uint32_t* args, int num){
   int i;
   for (i = 0; i < num + 2; i++)
     {
-      if (&args[i] == NULL || 
+      if (&args[i] == NULL ||
       !(is_user_vaddr (&args[i]))||
       pagedir_get_page (t->pagedir, &args[i]) == NULL )
       return false;
     }
- 
+
   return true;
 }
 
