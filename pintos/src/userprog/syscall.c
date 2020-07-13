@@ -25,7 +25,12 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
+  
   uint32_t* args = ((uint32_t*) f->esp);
+  if(!validate(args,0)){//||!validate_string((void *)args[1])){
+    //f->eax = -1;
+    exception_exit(-1);
+  }
 
   /*
    * The following print statement, if uncommented, will print out the syscall
@@ -59,8 +64,8 @@ syscall_handler (struct intr_frame *f UNUSED)
       //f->eax = -1;
       exception_exit(-1);
     }
-    pid_t pid = args[1];
-    f->eax = process_wait ((int) pid);
+    tid_t tid = args[1];
+    f->eax = process_wait ((int)tid);
   }
 
   if (args[0] == SYS_WRITE){
@@ -75,6 +80,10 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   if (args[0] == SYS_EXIT)
     {
+      if(!validate(args,1)){//||!validate_string((void *)args[1])){
+      //f->eax = -1;
+      exception_exit(-1);
+      }
       //f->eax = args[1];
       //printf ("%s: exit(%d)\n", &thread_current ()->name, args[1]);
       //thread_exit ();
