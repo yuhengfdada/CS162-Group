@@ -10,6 +10,7 @@
 #include "threads/synch.h"
 #include "devices/shutdown.h"
 #include "devices/input.h"
+#include "filesys/filesys.h"
 #include "filesys/file.h"
 
 
@@ -28,6 +29,8 @@ static void syscall_wait(struct intr_frame * f);
 static void syscall_exit(struct intr_frame * f);
 
 //Task 3 syscalls
+static void syscall_create(struct intr_frame * f);
+static void syscall_remove(struct intr_frame * f);
 static void syscall_close(struct intr_frame * f);
 static void syscall_open(struct intr_frame * f);
 
@@ -45,6 +48,8 @@ syscall_init (void)
   syscalls[SYS_EXIT]     = syscall_exit;
   syscalls[SYS_WRITE]    = syscall_write;
   // Task 3 syscalls
+  syscalls[SYS_CREATE]   = syscall_create;
+  syscalls[SYS_REMOVE]   = syscall_remove;
   syscalls[SYS_CLOSE]    = syscall_close;
   syscalls[SYS_OPEN]     = syscall_open;
 
@@ -82,6 +87,7 @@ static void syscall_halt(struct intr_frame * f)
 {
   shutdown_power_off();
 }
+
 static void syscall_exec(struct intr_frame * f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
@@ -114,6 +120,19 @@ static void syscall_exit(struct intr_frame * f)
   int exit_code = args[1];
   f->eax = exit_code;
   exception_exit(exit_code);
+}
+
+static void syscall_create(struct intr_frame *f) {
+  uint32_t *args = ((uint32_t *)f->esp);
+  char *name = (char *)args[1];
+  off_t initial_size = args[2];
+  f->eax = filesys_create(name, initial_size);
+}
+
+static void syscall_remove(struct intr_frame *f) {
+  uint32_t *args = ((uint32_t *)f->esp);
+  char *name = (char *)args[1];
+  f->eax = filesys_remove(name);
 }
 
 static void syscall_write(struct intr_frame * f)
