@@ -50,7 +50,7 @@ syscall_handler (struct intr_frame *f UNUSED)
   }
 
   if (args[0] == SYS_EXEC){
-    if(!validate(args,1)){//||!validate_string((void *)args[1])){
+    if(!validate(args,1)||!validate_string((void *)args[1])){
       //f->eax = -1;
       exception_exit(-1);
     }
@@ -80,9 +80,10 @@ syscall_handler (struct intr_frame *f UNUSED)
 
   if (args[0] == SYS_EXIT)
     {
-      if(!validate(args,1)){//||!validate_string((void *)args[1])){
-      //f->eax = -1;
-      exception_exit(-1);
+      if(!validate(args,1))//||!validate_string((void *)args[1]))
+      {
+        f->eax = -1;
+        exception_exit(-1);
       }
       //f->eax = args[1];
       //printf ("%s: exit(%d)\n", &thread_current ()->name, args[1]);
@@ -107,23 +108,23 @@ bool validate (uint32_t* args, int num){
   
 
   int i;
-  for (i = 0; i < num + 1; i++)
+  for (i = 0; i < num + 2; i++)
     {
-      if (pagedir_get_page (t->pagedir, &args[i]) == NULL
-      ||!(is_user_vaddr (&args[i])) ||
-      &args[i] == NULL)
-          
-        return false;
-      //args++;
+      if (&args[i] == NULL || 
+      !(is_user_vaddr (&args[i]))||
+      pagedir_get_page (t->pagedir, &args[i]) == NULL )
+      return false;
     }
  
   return true;
 }
-/*
+
 bool validate_string (void *arg){
  if ((arg == NULL) || !(is_user_vaddr (arg)) ||
       pagedir_get_page (thread_current () ->pagedir, arg) == NULL)
     return false;
+  if ((arg+1 == NULL) || !(is_user_vaddr (arg+1)) ||
+      pagedir_get_page (thread_current () ->pagedir, arg+1) == NULL)
+    return false;
   return true;
 }
-*/
