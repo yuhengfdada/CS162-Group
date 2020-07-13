@@ -124,12 +124,12 @@ static void syscall_exit(struct intr_frame * f)
 
 static void syscall_create(struct intr_frame *f) {
   uint32_t *args = ((uint32_t *)f->esp);
-  char *name = (char *)args[1];
-  off_t initial_size = args[2];
-  if (name != NULL && is_user_vaddr((void *)name)) {
-    f->eax = filesys_create(name, initial_size);
-  } else {
+  if (!validate(args,1) || !validate_string((void *)args[1])) {
     exception_exit(-1);
+  } else {
+    char *name = (char *)args[1];
+    off_t initial_size = args[2];
+    f->eax = filesys_create(name, initial_size);
   }
 }
 
