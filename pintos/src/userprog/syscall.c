@@ -126,7 +126,11 @@ static void syscall_create(struct intr_frame *f) {
   uint32_t *args = ((uint32_t *)f->esp);
   char *name = (char *)args[1];
   off_t initial_size = args[2];
-  f->eax = filesys_create(name, initial_size);
+  if (name != NULL && is_user_vaddr((void *)name)) {
+    f->eax = filesys_create(name, initial_size);
+  } else {
+    exception_exit(-1);
+  }
 }
 
 static void syscall_remove(struct intr_frame *f) {
