@@ -33,14 +33,13 @@ syscall_handler (struct intr_frame *f UNUSED)
   if (args[0] == SYS_HALT){
     shutdown_power_off();
   }
-/*
+
   if (args[0] == SYS_EXEC){
     char *file = (char *)args[1];
     tid_t tid = process_execute(file);
-    if(tid == -1) f->eax = -1;
-    else f->eax = tid;
+    f->eax = tid;
   }
-*/
+
   if (args[0] == SYS_WAIT){
     
   }

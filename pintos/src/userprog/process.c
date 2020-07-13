@@ -30,7 +30,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
    before process_execute() returns.  Returns the new process's
    thread id, or TID_ERROR if the thread cannot be created. */
 tid_t
-process_execute (const char *file_name)
+process_execute (const char *file_name)// file_name-> "[exe_name] [argv...]\n"
 {
   char *fn_copy;
   tid_t tid;
@@ -51,16 +51,19 @@ process_execute (const char *file_name)
 
   char *save_ptr;
   char *executable = strtok_r(fn_copy2, " ", &save_ptr);
+  //ToDo: open executabe here to prevent modify
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (executable, PRI_DEFAULT, start_process, fn_copy);
+  struct load_info li;
+  li.file_name = fn_copy;
+  sema_init(&(li.sema), 0);
+  li.success = false;
+  tid = thread_create (executable, PRI_DEFAULT, start_process, (void*)(&li));
   palloc_free_page(fn_copy2);
-  if (tid == TID_ERROR)
-    palloc_free_page (fn_copy);
-  else{
-    
-    //sema_init (&wait_load,0);
-    //sema_down (&wait_load);
+
+  sema_down(&(li.sema));//wait untill child load finish
+  if (tid == TID_ERROR || !li.success){
+    return TID_ERROR;
   }
   return tid;
 }
@@ -68,9 +71,10 @@ process_execute (const char *file_name)
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *load_info_)
 {
-  char *file_name = file_name_;
+  struct load_info* load_info = (struct load_info*) load_info_;
+  char *file_name = load_info->file_name;
   struct intr_frame if_;
   bool success;
 
@@ -83,8 +87,11 @@ start_process (void *file_name_)
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
-  if (!success)
+  if (!success){
+    load_info->success = false;
+    sema_up(&(load_info->sema));//notify parent: child load success
     thread_exit ();
+  }
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -92,6 +99,9 @@ start_process (void *file_name_)
      arguments on the stack in the form of a `struct intr_frame',
      we just point the stack pointer (%esp) to our stack frame
      and jump to it. */
+  load_info->success = true;
+  sema_up(&(load_info->sema));//notify parent: child load success
+  
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
 }
