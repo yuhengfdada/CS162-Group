@@ -12,6 +12,8 @@
 #include "devices/input.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
+#include "lib/kernel/list.h"
+#include "stdlib.h"
 
 /* Declare helper functions */
 static void syscall_handler (struct intr_frame *);
@@ -35,6 +37,8 @@ static void syscall_create(struct intr_frame * f);
 static void syscall_remove(struct intr_frame * f);
 static void syscall_close(struct intr_frame * f);
 static void syscall_open(struct intr_frame * f);
+static void syscall_filesize(struct intr_frame * f);
+static void syscall_read(struct intr_frame *f);
 
 static void syscall_write(struct intr_frame * f);
 
@@ -54,6 +58,8 @@ syscall_init (void)
   syscalls[SYS_REMOVE]   = syscall_remove;
   syscalls[SYS_CLOSE]    = syscall_close;
   syscalls[SYS_OPEN]     = syscall_open;
+  syscalls[SYS_FILESIZE] = syscall_filesize;
+  syscalls[SYS_READ]     = syscall_read;
 
 
 }
@@ -159,15 +165,98 @@ static void syscall_open(struct intr_frame * f){
   }
 }
 
+static void syscall_filesize(struct intr_frame * f){
+  uint32_t *args = ((uint32_t*)f->esp);
+  int fd = args[1];
+
+  struct thread *t = thread_current();
+  struct file_descriptor *temp = NULL;
+  struct list_elem *e;
+  for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
+    temp = list_entry(e, struct file_descriptor, elem);
+    if (temp->fd == fd) {
+      struct file *curr_file = temp->curr_file;
+      f->eax = file_length(curr_file);
+      break;
+    }
+  }
+}
+
+static void syscall_read(struct intr_frame *f) {
+  uint32_t *args = ((uint32_t*)f->esp);
+  if (!validate(args,3)) {
+    exception_exit(-1);
+  } else {
+    int fd = args[1];
+    char *buffer = (char*)args[2];
+    int size = args[3];
+
+    /* Read input from standard input. */
+    if (fd == 0) {
+      int bytes_read = 0;
+      uint8_t *bytes_buffer = (uint8_t *)args[2];
+      uint8_t temp;
+      while (bytes_read < size && (temp = input_getc()) != 0) {
+        *bytes_buffer = temp;
+        bytes_buffer += 1;
+        bytes_read += 1;
+      }
+      f->eax = bytes_read;
+    } else { // Otherwise
+      struct thread *t = thread_current();
+      struct file_descriptor *temp = NULL;
+      struct file_descriptor *found = NULL;
+      struct list_elem *e;
+      for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
+        temp = list_entry(e, struct file_descriptor, elem);
+        if (temp->fd == fd) {
+          found = temp;
+          break;
+        }
+      }
+      if (!found) {
+        exception_exit(-1);
+      } else {
+        struct file *curr_file = found->curr_file;
+        f->eax = file_read(curr_file, buffer, size);
+      }
+    }
+  }
+}
+
 static void syscall_write(struct intr_frame * f)
 {
-  uint32_t* args = ((uint32_t*) f->esp);
-  int fd = args[1];
-  char *buffer = args[2];
-  int size = args[3];
-  if (fd == 1) {
-    putbuf(buffer,size);
-    f->eax = size;
+  uint32_t *args = ((uint32_t*)f->esp);
+  if (!validate(args,3)) {
+    exception_exit(-1);
+  } else {
+    int fd = args[1];
+    char *buffer = (char *)args[2];
+    int size = args[3];
+
+    /* Write output to standard output */
+    if (fd == 1) {
+      putbuf(buffer, size);
+      f->eax = size;
+    } else { // Otherwise
+      struct thread *t = thread_current();
+      struct file_descriptor *temp = NULL;
+      struct file_descriptor *found = NULL;
+      struct list_elem *e;
+      for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
+        temp = list_entry(e, struct file_descriptor, elem);
+        if (temp->fd == fd) {
+          found = temp;
+          break;
+        }
+      }
+      if (!found) {
+        exception_exit(-1);
+      } else {
+        struct file *curr_file = found->curr_file;
+        f->eax = file_write(curr_file, buffer, size);
+      }
+    }
   }
 }
 
@@ -217,6 +306,7 @@ bool validate_string (void *arg){
   return true;
 }
 
+/* Given a file object, this helper functions returns the corresponding file descriptor. */
 static int add_file_descriptor(struct file *curr_file) {
   struct thread *t = thread_current();
   struct file_descriptor *curr_fd = (struct file_descriptor*)malloc(sizeof(struct file_descriptor));
