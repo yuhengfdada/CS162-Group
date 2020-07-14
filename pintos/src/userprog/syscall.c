@@ -23,6 +23,7 @@ bool validate (uint32_t *, int);
 bool validate_string (void *);
 bool validate_ptr (uint32_t *args, int num);
 void remove_fd (struct file_descriptor *);
+struct file_descriptor *find_fd (int fd);
 
 /* Optimize with array of function pointers */
 void (*syscalls[SYSCALL_NUM])(struct intr_frame *f);
@@ -186,19 +187,15 @@ static void syscall_filesize (struct intr_frame *f)
   lock_acquire(&file_syscall_lock);
   uint32_t *args = (uint32_t *) f->esp;
   int fd = args[1];
-
-  struct thread *t = thread_current();
-  struct file_descriptor *temp = NULL;
-  struct list_elem *e;
-  for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
-    temp = list_entry(e, struct file_descriptor, elem);
-    if (temp->fd == fd) {
-      struct file *curr_file = temp->curr_file;
-      f->eax = file_length(curr_file);
-      break;
-    }
+  struct file_descriptor *found = find_fd(fd);
+  if (!found) {
+    lock_release(&file_syscall_lock);
+    exception_exit(-1);
+  } else {
+    struct file *curr_file = found->curr_file;
+    f->eax = file_length(curr_file);
+    lock_release(&file_syscall_lock);
   }
-  lock_release(&file_syscall_lock);
 }
 
 static void syscall_read (struct intr_frame *f)
@@ -210,7 +207,7 @@ static void syscall_read (struct intr_frame *f)
     exception_exit(-1);
   } else {
     int fd = args[1];
-    char *buffer = (char*)args[2];
+    char *buffer = (char *)args[2];
     int size = args[3];
 
     /* Read input from standard input. */
@@ -225,17 +222,7 @@ static void syscall_read (struct intr_frame *f)
       }
       f->eax = bytes_read;
     } else { // Otherwise
-      struct thread *t = thread_current();
-      struct file_descriptor *temp = NULL;
-      struct file_descriptor *found = NULL;
-      struct list_elem *e;
-      for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
-        temp = list_entry(e, struct file_descriptor, elem);
-        if (temp->fd == fd) {
-          found = temp;
-          break;
-        }
-      }
+      struct file_descriptor *found = find_fd(fd);
       if (!found) {
         lock_release(&file_syscall_lock);
         exception_exit(-1);
@@ -265,17 +252,7 @@ static void syscall_write (struct intr_frame *f)
       putbuf(buffer, size);
       f->eax = size;
     } else { // Otherwise
-      struct thread *t = thread_current();
-      struct file_descriptor *temp = NULL;
-      struct file_descriptor *found = NULL;
-      struct list_elem *e;
-      for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
-        temp = list_entry(e, struct file_descriptor, elem);
-        if (temp->fd == fd) {
-          found = temp;
-          break;
-        }
-      }
+      struct file_descriptor *found = find_fd(fd);
       if (!found) {
         lock_release(&file_syscall_lock);
         exception_exit(-1);
@@ -294,17 +271,7 @@ static void syscall_seek (struct intr_frame *f)
   uint32_t *args = (uint32_t *) f->esp;
   int fd = args[1];
   unsigned position = args[2];
-  struct thread *t = thread_current();
-  struct file_descriptor *temp = NULL;
-  struct file_descriptor *found = NULL;
-  struct list_elem *e;
-  for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
-    temp = list_entry(e, struct file_descriptor, elem);
-    if (temp->fd == fd) {
-      found = temp;
-      break;
-    }
-  }
+  struct file_descriptor *found = find_fd(fd);
   if (!found) {
     lock_release(&file_syscall_lock);
     exception_exit(-1);
@@ -320,17 +287,7 @@ static void syscall_tell (struct intr_frame *f)
   lock_acquire(&file_syscall_lock);
   uint32_t *args = (uint32_t *) f->esp;
   int fd = args[1];
-  struct thread *t = thread_current();
-  struct file_descriptor *temp = NULL;
-  struct file_descriptor *found = NULL;
-  struct list_elem *e;
-  for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
-    temp = list_entry(e, struct file_descriptor, elem);
-    if (temp->fd == fd) {
-      found = temp;
-      break;
-    }
-  }
+  struct file_descriptor *found = find_fd(fd);
   if (!found) {
     lock_release(&file_syscall_lock);
     exception_exit(-1);
@@ -346,17 +303,7 @@ static void syscall_close (struct intr_frame *f)
   lock_acquire(&file_syscall_lock);
   uint32_t *args = (uint32_t *) f->esp;
   int fd = args[1];
-  struct thread *t = thread_current();
-  struct file_descriptor *temp = NULL;
-  struct file_descriptor *found = NULL;
-  struct list_elem *e;
-  for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
-    temp = list_entry(e, struct file_descriptor, elem);
-    if (temp->fd == fd) {
-      found = temp;
-      break;
-    }
-  }
+  struct file_descriptor *found = find_fd(fd);
   if (!found) {
     lock_release(&file_syscall_lock);
     exception_exit(-1);
@@ -371,21 +318,21 @@ static void syscall_close (struct intr_frame *f)
 /* Exit when there is an exception. */
 int exception_exit (int exit_code)
 {
-      thread_current ()-> self_wait_status_t -> exit_code = exit_code;
-      printf ("%s: exit(%d)\n", (char *)&thread_current ()->name, exit_code);
-      thread_exit ();
+  thread_current()->self_wait_status_t->exit_code = exit_code;
+  printf ("%s: exit(%d)\n", (char *)&thread_current()->name, exit_code);
+  thread_exit();
 }
 
 /* Check whether the pointer address is valid for not. */
-bool validate (uint32_t* args, int num)
+bool validate (uint32_t *args, int num)
 {
   struct thread *t = thread_current ();
   int i;
   for (i = 0; i < num + 2; i++)
     {
       if (&args[i] == NULL ||
-      !(is_user_vaddr (&args[i]))||
-      pagedir_get_page (t->pagedir, &args[i]) == NULL )
+      !(is_user_vaddr(&args[i])) ||
+      pagedir_get_page(t->pagedir, &args[i]) == NULL)
       return false;
     }
   return true;
@@ -394,18 +341,37 @@ bool validate (uint32_t* args, int num)
 /* Check whether the address is valid. In the case that the address is at 
    the edge of the boundary, we also check whether the next address is valid
    or not. */
-bool validate_string (void *arg){
-  if ((arg == NULL) || !(is_user_vaddr (arg)) ||
-      pagedir_get_page (thread_current () ->pagedir, arg) == NULL)
+bool validate_string (void *arg)
+{
+  if ((arg == NULL) || !(is_user_vaddr(arg)) ||
+      pagedir_get_page(thread_current()->pagedir, arg) == NULL)
     return false;
-  if ((arg+1 == NULL) || !(is_user_vaddr (arg+1)) ||
-      pagedir_get_page (thread_current () ->pagedir, arg+1) == NULL)
+  if ((arg+1 == NULL) || !(is_user_vaddr(arg+1)) ||
+      pagedir_get_page(thread_current()->pagedir, arg+1) == NULL)
     return false;
   return true;
 }
 
-/* Remove a file descriptor from the pintos list. */
-void remove_fd (struct file_descriptor* fd){
+/* Remove a file descriptor from the pintos list and free the allocated memory */
+void remove_fd (struct file_descriptor* fd)
+{
   list_remove(&(fd->elem));
+  free(fd);
 }
 
+/* Find the file descriptor in the current thread with the same fd. */
+struct file_descriptor *find_fd (int fd)
+{
+  struct thread *t = thread_current();
+  struct file_descriptor *temp = NULL;
+  struct file_descriptor *found = NULL;
+  struct list_elem *e;
+  for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
+    temp = list_entry(e, struct file_descriptor, elem);
+    if (temp->fd == fd) {
+      found = temp;
+      break;
+    }
+  }
+  return found;
+}
