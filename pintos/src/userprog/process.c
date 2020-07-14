@@ -192,9 +192,6 @@ process_exit (void)
       file_close(curr_file);
       free(temp2);
   }
-
-  
-
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   uint32_t *pd;

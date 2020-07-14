@@ -612,7 +612,8 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 /* Given a file object, this helper functions returns the corresponding file descriptor. */
-int add_file_descriptor(struct file *curr_file) {
+int add_file_descriptor (struct file *curr_file) 
+{
   struct thread *t = thread_current();
   struct file_descriptor *curr_fd = (struct file_descriptor*)malloc(sizeof(struct file_descriptor));
   curr_fd->fd = t->fd_count;
