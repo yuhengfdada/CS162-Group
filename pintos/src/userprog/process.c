@@ -337,8 +337,8 @@ if (fn_copy_2 == NULL)
       printf ("load: %s: open failed\n", file_name);
       goto done;
     }
-
-  //add_file_descriptor(file);
+  
+  add_file_descriptor(file);
   file_deny_write (file);
 
   /* Read and verify executable header. */
@@ -424,8 +424,8 @@ if (fn_copy_2 == NULL)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
-
+  // file_close (file);
+  
   palloc_free_page(fn_copy);
   palloc_free_page(fn_copy_2);
 
