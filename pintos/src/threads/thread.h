@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/synch.h"
 #include "threads/fixed-point.h"
+#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -94,6 +95,12 @@ struct wait_status{
 /*Use a double linked list(list.c) to keep track of all child processes. */
 };
 
+struct file_descriptor {
+   int fd;                    /* An int used to identify a file descriptor */
+   struct file *curr_file;    /* A pointer to a file struct as defined in file.c */
+   struct list_elem elem;
+};
+
 struct thread
   {
     /* Owned by thread.c. */
@@ -118,6 +125,10 @@ struct thread
     /*added for wait, allocate in kernel heap*/
     struct list child_wait_status;
     struct wait_status* self_wait_status_t;
+
+    /* Added for file syscalls. */
+    int fd_count;                         /* Current number of file descriptors. */
+    struct list file_descriptors;        /* A list of file descriptors. */
   };
 
 /* If false (default), use round-robin scheduler.
