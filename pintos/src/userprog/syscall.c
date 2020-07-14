@@ -36,12 +36,13 @@ static void syscall_exit(struct intr_frame * f);
 //Task 3 syscalls
 static void syscall_create(struct intr_frame * f);
 static void syscall_remove(struct intr_frame * f);
-static void syscall_close(struct intr_frame * f);
 static void syscall_open(struct intr_frame * f);
 static void syscall_filesize(struct intr_frame * f);
-static void syscall_read(struct intr_frame *f);
-
+static void syscall_read(struct intr_frame * f);
 static void syscall_write(struct intr_frame * f);
+static void syscall_seek(struct intr_frame * f);
+static void syscall_tell(struct intr_frame *f);
+static void syscall_close(struct intr_frame * f);
 
 
 void
@@ -57,10 +58,12 @@ syscall_init (void)
   // Task 3 syscalls
   syscalls[SYS_CREATE]   = syscall_create;
   syscalls[SYS_REMOVE]   = syscall_remove;
-  syscalls[SYS_CLOSE]    = syscall_close;
   syscalls[SYS_OPEN]     = syscall_open;
   syscalls[SYS_FILESIZE] = syscall_filesize;
   syscalls[SYS_READ]     = syscall_read;
+  syscalls[SYS_SEEK]     = syscall_seek;
+  syscalls[SYS_TELL]     = syscall_tell;
+  syscalls[SYS_CLOSE]    = syscall_close;
 
 
 }
@@ -261,14 +264,71 @@ static void syscall_write(struct intr_frame * f)
   }
 }
 
+static void syscall_seek(struct intr_frame * f) {
+  uint32_t *args = ((uint32_t *)f->esp);
+  int fd = args[1];
+  unsigned position = args[2];
+  struct thread *t = thread_current();
+  struct file_descriptor *temp = NULL;
+  struct file_descriptor *found = NULL;
+  struct list_elem *e;
+  for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
+    temp = list_entry(e, struct file_descriptor, elem);
+    if (temp->fd == fd) {
+      found = temp;
+      break;
+    }
+  }
+  if (!found) {
+    exception_exit(-1);
+  } else {
+    struct file *curr_file = found->curr_file;
+    file_seek(curr_file, position);
+  }
+}
+
+static void syscall_tell(struct intr_frame *f) {
+  uint32_t *args = ((uint32_t *)f->esp);
+  int fd = args[1];
+  struct thread *t = thread_current();
+  struct file_descriptor *temp = NULL;
+  struct file_descriptor *found = NULL;
+  struct list_elem *e;
+  for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
+    temp = list_entry(e, struct file_descriptor, elem);
+    if (temp->fd == fd) {
+      found = temp;
+      break;
+    }
+  }
+  if (!found) {
+    exception_exit(-1);
+  } else {
+    struct file *curr_file = found->curr_file;
+    f->eax = file_tell(curr_file);
+  }
+}
+
 static void syscall_close(struct intr_frame * f){
   uint32_t* args = ((uint32_t*) f->esp);
-  struct file *file = NULL;
   int fd = args[1];
-  if (fd == 1){
-    file = (struct file *) args[1];
+  struct thread *t = thread_current();
+  struct file_descriptor *temp = NULL;
+  struct file_descriptor *found = NULL;
+  struct list_elem *e;
+  for (e = list_begin(&(t->file_descriptors)); e != list_end(&(t->file_descriptors)); e = list_next(e)) {
+    temp = list_entry(e, struct file_descriptor, elem);
+    if (temp->fd == fd) {
+      found = temp;
+      break;
+    }
   }
-  file_close(file);
+  if (!found) {
+    exception_exit(-1);
+  } else {
+    struct file *curr_file = found->curr_file;
+    file_close(curr_file);
+  }
 }
 
 /* Exit when there is an exception. */
