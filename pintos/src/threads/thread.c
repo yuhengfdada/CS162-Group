@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -212,7 +213,7 @@ static void
 init_wait_status (struct thread *t)//called in 
 {
   t->self_wait_status_t = malloc (sizeof (struct wait_status));
-  t->self_wait_status_t->exit_code = 0;
+  t->self_wait_status_t->exit_code = -1;
   t->self_wait_status_t->ref_count = 2;
   t->self_wait_status_t->child_pid = t->tid;
   t->self_wait_status_t->waited = false;
@@ -609,3 +610,14 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/* Given a file object, this helper functions returns the corresponding file descriptor. */
+int add_file_descriptor(struct file *curr_file) {
+  struct thread *t = thread_current();
+  struct file_descriptor *curr_fd = (struct file_descriptor*)malloc(sizeof(struct file_descriptor));
+  curr_fd->fd = t->fd_count;
+  curr_fd->curr_file = curr_file;
+  list_push_back(&(t->file_descriptors), &(curr_fd->elem));
+  t->fd_count += 1;
+  return curr_fd->fd;
+}
