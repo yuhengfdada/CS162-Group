@@ -202,7 +202,7 @@ static void syscall_read(struct intr_frame *f) {
         bytes_read += 1;
       }
       f->eax = bytes_read;
-    } else {
+    } else { // Otherwise
       struct thread *t = thread_current();
       struct file_descriptor *temp = NULL;
       struct file_descriptor *found = NULL;
@@ -233,10 +233,12 @@ static void syscall_write(struct intr_frame * f)
     int fd = args[1];
     char *buffer = (char *)args[2];
     int size = args[3];
+
+    /* Write output to standard output */
     if (fd == 1) {
       putbuf(buffer, size);
       f->eax = size;
-    } else {
+    } else { // Otherwise
       struct thread *t = thread_current();
       struct file_descriptor *temp = NULL;
       struct file_descriptor *found = NULL;
