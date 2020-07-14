@@ -13,17 +13,19 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 
-
+/* Declare helper functions */
 static void syscall_handler (struct intr_frame *);
 int exception_exit (int);
 bool validate (uint32_t* , int);
 bool validate_string (void *);
+bool validate_ptr (uint32_t *args, int num);
+static int add_file_descriptor(struct file *curr_file);
 
 /* optimize with array of function pointers */
 void (*syscalls[SYSCALL_NUM])(struct intr_frame * f);
 static void syscall_practice(struct intr_frame * f);
 
-static void syscall_halt(struct intr_frame * f);
+static void syscall_halt(struct intr_frame * f UNUSED);
 static void syscall_exec(struct intr_frame * f);
 static void syscall_wait(struct intr_frame * f);
 static void syscall_exit(struct intr_frame * f);
@@ -124,7 +126,7 @@ static void syscall_exit(struct intr_frame * f)
 
 static void syscall_create(struct intr_frame *f) {
   uint32_t *args = ((uint32_t *)f->esp);
-  if (!validate(args,1) || !validate_string((void *)args[1])) {
+  if (!validate(args,1)||!validate_string((void *)args[1])) {
     exception_exit(-1);
   } else {
     char *name = (char *)args[1];
@@ -139,6 +141,24 @@ static void syscall_remove(struct intr_frame *f) {
   f->eax = filesys_remove(name);
 }
 
+static void syscall_open(struct intr_frame * f){
+  uint32_t *args = ((uint32_t *)f->esp);
+  char *name = (char *)args[1];
+  if (!validate(args,1)||!validate_string((void *)args[1])) {
+    exception_exit(-1);
+  } else if (name[0] == '\0') {
+    f->eax = -1;
+  } else {
+    struct file *curr_file = filesys_open(name);
+    if (!curr_file) {
+      f->eax = -1;
+    } else {
+      int fd = add_file_descriptor(curr_file);
+      f->eax = fd;
+    }
+  }
+}
+
 static void syscall_write(struct intr_frame * f)
 {
   uint32_t* args = ((uint32_t*) f->esp);
@@ -151,16 +171,6 @@ static void syscall_write(struct intr_frame * f)
   }
 }
 
-static void syscall_open(struct intr_frame * f){
-  uint32_t* args = ((uint32_t*) f->esp);
-  struct inode *in = NULL;
-  int fd = args[1];
-  if (fd == 1){
-    in = (struct inode *)args[1];
-  }
-  file_open(in);
-}
-
 static void syscall_close(struct intr_frame * f){
   uint32_t* args = ((uint32_t*) f->esp);
   struct file *file = NULL;
@@ -171,6 +181,7 @@ static void syscall_close(struct intr_frame * f){
   file_close(file);
 }
 
+/* Exit when there is an exception. */
 int exception_exit (int exit_code){
       thread_current ()-> self_wait_status_t -> exit_code = exit_code;
       printf ("%s: exit(%d)\n", &thread_current ()->name, exit_code);
@@ -193,12 +204,25 @@ bool validate (uint32_t* args, int num){
   return true;
 }
 
+/* Check whether the address is valid. In the case that the address is at 
+   the edge of the boundary, we also check whether the next address is valid
+   or not. */
 bool validate_string (void *arg){
- if ((arg == NULL) || !(is_user_vaddr (arg)) ||
+  if ((arg == NULL) || !(is_user_vaddr (arg)) ||
       pagedir_get_page (thread_current () ->pagedir, arg) == NULL)
     return false;
   if ((arg+1 == NULL) || !(is_user_vaddr (arg+1)) ||
       pagedir_get_page (thread_current () ->pagedir, arg+1) == NULL)
     return false;
   return true;
+}
+
+static int add_file_descriptor(struct file *curr_file) {
+  struct thread *t = thread_current();
+  struct file_descriptor *curr_fd = (struct file_descriptor*)malloc(sizeof(struct file_descriptor));
+  curr_fd->fd = t->fd_count;
+  curr_fd->curr_file = curr_file;
+  list_push_back(&(t->file_descriptors), &(curr_fd->elem));
+  t->fd_count += 1;
+  return curr_fd->fd;
 }
