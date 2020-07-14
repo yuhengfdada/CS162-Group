@@ -13,6 +13,7 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "lib/kernel/list.h"
+#include "threads/malloc.h"
 #include "stdlib.h"
 
 /* Declare helper functions */
