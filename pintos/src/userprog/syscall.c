@@ -16,37 +16,37 @@
 #include "threads/malloc.h"
 #include "stdlib.h"
 
-/* Declare helper functions */
 static void syscall_handler (struct intr_frame *);
 
-bool validate (uint32_t* , int);
+/* Declare helper functions */
+bool validate (uint32_t *, int);
 bool validate_string (void *);
 bool validate_ptr (uint32_t *args, int num);
 void remove_fd (struct file_descriptor *);
 
-/* optimize with array of function pointers */
-void (*syscalls[SYSCALL_NUM])(struct intr_frame * f);
-static void syscall_practice(struct intr_frame * f);
+/* Optimize with array of function pointers */
+void (*syscalls[SYSCALL_NUM])(struct intr_frame *f);
 
-static void syscall_halt(struct intr_frame * f UNUSED);
-static void syscall_exec(struct intr_frame * f);
-static void syscall_wait(struct intr_frame * f);
-static void syscall_exit(struct intr_frame * f);
+/* Task 2 syscalls */
+static void syscall_practice (struct intr_frame *f);
+static void syscall_halt (struct intr_frame *f UNUSED);
+static void syscall_exec (struct intr_frame *f);
+static void syscall_wait (struct intr_frame *f);
+static void syscall_exit (struct intr_frame *f);
 
-//Task 3 syscalls
-static void syscall_create(struct intr_frame * f);
-static void syscall_remove(struct intr_frame * f);
-static void syscall_open(struct intr_frame * f);
-static void syscall_filesize(struct intr_frame * f);
-static void syscall_read(struct intr_frame * f);
-static void syscall_write(struct intr_frame * f);
-static void syscall_seek(struct intr_frame * f);
-static void syscall_tell(struct intr_frame *f);
-static void syscall_close(struct intr_frame * f);
+/* Task 3 syscalls */
+static void syscall_create (struct intr_frame *f);
+static void syscall_remove (struct intr_frame *f);
+static void syscall_open (struct intr_frame *f);
+static void syscall_filesize (struct intr_frame *f);
+static void syscall_read (struct intr_frame *f);
+static void syscall_write (struct intr_frame *f);
+static void syscall_seek (struct intr_frame *f);
+static void syscall_tell (struct intr_frame *f);
+static void syscall_close (struct intr_frame *f);
 
 // Global file syscall lock
 static struct lock file_syscall_lock;
-
 
 void
 syscall_init (void)
@@ -54,12 +54,14 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   lock_init(&file_syscall_lock);
 
+  // Task 2 syscalls
   syscalls[SYS_PRACTICE] = syscall_practice;
   syscalls[SYS_HALT]     = syscall_halt;
   syscalls[SYS_EXEC]     = syscall_exec;
   syscalls[SYS_WAIT]     = syscall_wait;
   syscalls[SYS_EXIT]     = syscall_exit;
   syscalls[SYS_WRITE]    = syscall_write;
+
   // Task 3 syscalls
   syscalls[SYS_CREATE]   = syscall_create;
   syscalls[SYS_REMOVE]   = syscall_remove;
@@ -69,17 +71,13 @@ syscall_init (void)
   syscalls[SYS_SEEK]     = syscall_seek;
   syscalls[SYS_TELL]     = syscall_tell;
   syscalls[SYS_CLOSE]    = syscall_close;
-
-
 }
 
 static void
 syscall_handler (struct intr_frame *f UNUSED)
 {
-
-  uint32_t* args = ((uint32_t*) f->esp);
-  if(!validate(args,0)){//||!validate_string((void *)args[1])){
-    //f->eax = -1;
+  uint32_t *args = (uint32_t *) f->esp;
+  if (!validate(args,0)) {
     exception_exit(-1);
   }
 
@@ -93,22 +91,21 @@ syscall_handler (struct intr_frame *f UNUSED)
   (*syscalls[(int)args[0]])(f);
 }
 
-
-static void syscall_practice(struct intr_frame * f)
+static void syscall_practice (struct intr_frame *f)
 {
-  uint32_t* args = ((uint32_t*) f->esp);
+  uint32_t *args = (uint32_t *) f->esp;
   f->eax = ++args[1];
 }
 
-static void syscall_halt(struct intr_frame * f)
+static void syscall_halt (struct intr_frame *f UNUSED)
 {
   shutdown_power_off();
 }
 
-static void syscall_exec(struct intr_frame * f)
+static void syscall_exec (struct intr_frame *f)
 {
-  uint32_t* args = ((uint32_t*) f->esp);
-  if(!validate(args,1)||!validate_string((void *)args[1])){
+  uint32_t *args = (uint32_t *) f->esp;
+  if (!validate(args,1) || !validate_string((void *)args[1])) {
     exception_exit(-1);
   }
   char *file = (char *)args[1];
@@ -116,21 +113,20 @@ static void syscall_exec(struct intr_frame * f)
   f->eax = tid;
 }
 
-static void syscall_wait(struct intr_frame * f)
+static void syscall_wait (struct intr_frame *f)
 {
-  uint32_t* args = ((uint32_t*) f->esp);
-  if(!validate(args,1)){//||!validate_string((void *)args[1])){
+  uint32_t *args = (uint32_t *) f->esp;
+  if (!validate(args,1)) {
     exception_exit(-1);
   }
   tid_t tid = args[1];
   f->eax = process_wait ((int)tid);
 }
 
-static void syscall_exit(struct intr_frame * f)
+static void syscall_exit (struct intr_frame *f)
 {
-  uint32_t* args = ((uint32_t*) f->esp);
-  if(!validate(args,1))//||!validate_string((void *)args[1]))
-  {
+  uint32_t *args = (uint32_t *) f->esp;
+  if (!validate(args,1)) {
     f->eax = -1;
     exception_exit(-1);
   }
@@ -139,10 +135,11 @@ static void syscall_exit(struct intr_frame * f)
   exception_exit(exit_code);
 }
 
-static void syscall_create(struct intr_frame *f) {
+static void syscall_create (struct intr_frame *f) 
+{
   lock_acquire(&file_syscall_lock);
-  uint32_t *args = ((uint32_t *)f->esp);
-  if (!validate(args,1)||!validate_string((void *)args[1])) {
+  uint32_t *args = (uint32_t *) f->esp;
+  if (!validate(args,1) || !validate_string((void *)args[1])) {
     lock_release(&file_syscall_lock);
     exception_exit(-1);
   } else {
@@ -153,19 +150,21 @@ static void syscall_create(struct intr_frame *f) {
   }
 }
 
-static void syscall_remove(struct intr_frame *f) {
+static void syscall_remove (struct intr_frame *f) 
+{
   lock_acquire(&file_syscall_lock);
-  uint32_t *args = ((uint32_t *)f->esp);
+  uint32_t *args = (uint32_t *) f->esp;
   char *name = (char *)args[1];
   f->eax = filesys_remove(name);
   lock_release(&file_syscall_lock);
 }
 
-static void syscall_open(struct intr_frame * f){
+static void syscall_open (struct intr_frame *f)
+{
   lock_acquire(&file_syscall_lock);
-  uint32_t *args = ((uint32_t *)f->esp);
+  uint32_t *args = (uint32_t *) f->esp;
   char *name = (char *)args[1];
-  if (!validate(args,1)||!validate_string((void *)args[1])) {
+  if (!validate(args,1) || !validate_string((void *)args[1])) {
     lock_release(&file_syscall_lock);
     exception_exit(-1);
   } else if (name[0] == '\0') {
@@ -182,9 +181,10 @@ static void syscall_open(struct intr_frame * f){
   lock_release(&file_syscall_lock);
 }
 
-static void syscall_filesize(struct intr_frame * f){
+static void syscall_filesize (struct intr_frame *f)
+{
   lock_acquire(&file_syscall_lock);
-  uint32_t *args = ((uint32_t*)f->esp);
+  uint32_t *args = (uint32_t *) f->esp;
   int fd = args[1];
 
   struct thread *t = thread_current();
@@ -201,10 +201,11 @@ static void syscall_filesize(struct intr_frame * f){
   lock_release(&file_syscall_lock);
 }
 
-static void syscall_read(struct intr_frame *f) {
+static void syscall_read (struct intr_frame *f)
+{
   lock_acquire(&file_syscall_lock);
-  uint32_t *args = ((uint32_t*)f->esp);
-  if (!validate(args,3)||!validate_string((void *)args[2])) {
+  uint32_t *args = (uint32_t *) f->esp;
+  if (!validate(args,3) || !validate_string((void *)args[2])) {
     lock_release(&file_syscall_lock);
     exception_exit(-1);
   } else {
@@ -247,11 +248,11 @@ static void syscall_read(struct intr_frame *f) {
   lock_release(&file_syscall_lock);
 }
 
-static void syscall_write(struct intr_frame * f)
+static void syscall_write (struct intr_frame *f)
 {
   lock_acquire(&file_syscall_lock);
-  uint32_t *args = ((uint32_t*)f->esp);
-  if (!validate(args,3)||!validate_string((void *)args[2])) {
+  uint32_t *args = (uint32_t *) f->esp;
+  if (!validate(args,3) || !validate_string((void *)args[2])) {
     lock_release(&file_syscall_lock);
     exception_exit(-1);
   } else {
@@ -287,9 +288,10 @@ static void syscall_write(struct intr_frame * f)
   lock_release(&file_syscall_lock);
 }
 
-static void syscall_seek(struct intr_frame * f) {
+static void syscall_seek (struct intr_frame *f) 
+{
   lock_acquire(&file_syscall_lock);
-  uint32_t *args = ((uint32_t *)f->esp);
+  uint32_t *args = (uint32_t *) f->esp;
   int fd = args[1];
   unsigned position = args[2];
   struct thread *t = thread_current();
@@ -313,9 +315,10 @@ static void syscall_seek(struct intr_frame * f) {
   lock_release(&file_syscall_lock);
 }
 
-static void syscall_tell(struct intr_frame *f) {
+static void syscall_tell (struct intr_frame *f) 
+{
   lock_acquire(&file_syscall_lock);
-  uint32_t *args = ((uint32_t *)f->esp);
+  uint32_t *args = (uint32_t *) f->esp;
   int fd = args[1];
   struct thread *t = thread_current();
   struct file_descriptor *temp = NULL;
@@ -338,9 +341,10 @@ static void syscall_tell(struct intr_frame *f) {
   lock_release(&file_syscall_lock);
 }
 
-static void syscall_close(struct intr_frame * f){
+static void syscall_close (struct intr_frame *f)
+{
   lock_acquire(&file_syscall_lock);
-  uint32_t* args = ((uint32_t*) f->esp);
+  uint32_t *args = (uint32_t *) f->esp;
   int fd = args[1];
   struct thread *t = thread_current();
   struct file_descriptor *temp = NULL;
@@ -365,15 +369,16 @@ static void syscall_close(struct intr_frame * f){
 }
 
 /* Exit when there is an exception. */
-int exception_exit (int exit_code){
+int exception_exit (int exit_code)
+{
       thread_current ()-> self_wait_status_t -> exit_code = exit_code;
-      printf ("%s: exit(%d)\n", &thread_current ()->name, exit_code);
+      printf ("%s: exit(%d)\n", (char *)&thread_current ()->name, exit_code);
       thread_exit ();
 }
 
-/* argv and all argv[i]. Check pointer address and value
-     (should also be a user space ptr) */
-bool validate (uint32_t* args, int num){
+/* Check whether the pointer address is valid for not. */
+bool validate (uint32_t* args, int num)
+{
   struct thread *t = thread_current ();
   int i;
   for (i = 0; i < num + 2; i++)
@@ -383,7 +388,6 @@ bool validate (uint32_t* args, int num){
       pagedir_get_page (t->pagedir, &args[i]) == NULL )
       return false;
     }
-
   return true;
 }
 
@@ -400,8 +404,8 @@ bool validate_string (void *arg){
   return true;
 }
 
-
-
+/* Remove a file descriptor from the pintos list. */
 void remove_fd (struct file_descriptor* fd){
   list_remove(&(fd->elem));
 }
+
