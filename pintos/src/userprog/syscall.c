@@ -13,15 +13,16 @@
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "lib/kernel/list.h"
+#include "threads/malloc.h"
 #include "stdlib.h"
 
 /* Declare helper functions */
 static void syscall_handler (struct intr_frame *);
-int exception_exit (int);
+
 bool validate (uint32_t* , int);
 bool validate_string (void *);
 bool validate_ptr (uint32_t *args, int num);
-static int add_file_descriptor(struct file *curr_file);
+void remove_fd (struct file_descriptor *);
 
 /* optimize with array of function pointers */
 void (*syscalls[SYSCALL_NUM])(struct intr_frame * f);
@@ -187,7 +188,7 @@ static void syscall_filesize(struct intr_frame * f){
 
 static void syscall_read(struct intr_frame *f) {
   uint32_t *args = ((uint32_t*)f->esp);
-  if (!validate(args,3)) {
+  if (!validate(args,3)||!validate_string((void *)args[2])) {
     exception_exit(-1);
   } else {
     int fd = args[1];
@@ -230,7 +231,7 @@ static void syscall_read(struct intr_frame *f) {
 static void syscall_write(struct intr_frame * f)
 {
   uint32_t *args = ((uint32_t*)f->esp);
-  if (!validate(args,3)) {
+  if (!validate(args,3)||!validate_string((void *)args[2])) {
     exception_exit(-1);
   } else {
     int fd = args[1];
@@ -327,6 +328,7 @@ static void syscall_close(struct intr_frame * f){
   } else {
     struct file *curr_file = found->curr_file;
     file_close(curr_file);
+    remove_fd(found);
   }
 }
 
@@ -366,13 +368,8 @@ bool validate_string (void *arg){
   return true;
 }
 
-/* Given a file object, this helper functions returns the corresponding file descriptor. */
-static int add_file_descriptor(struct file *curr_file) {
-  struct thread *t = thread_current();
-  struct file_descriptor *curr_fd = (struct file_descriptor*)malloc(sizeof(struct file_descriptor));
-  curr_fd->fd = t->fd_count;
-  curr_fd->curr_file = curr_file;
-  list_push_back(&(t->file_descriptors), &(curr_fd->elem));
-  t->fd_count += 1;
-  return curr_fd->fd;
+
+
+void remove_fd (struct file_descriptor* fd){
+  list_remove(&(fd->elem));
 }

@@ -19,6 +19,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "userprog/syscall.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -43,7 +44,7 @@ process_execute (const char *file_name)// file_name-> "[exe_name] [argv...]\n"
 
   /* Make another copy of FILE_NAME so we can get the executable name. */
   char *fn_copy2 = palloc_get_page(0);
-  if (fn_copy == NULL)
+  if (fn_copy2 == NULL)
     return TID_ERROR;
   strlcpy(fn_copy2, file_name, PGSIZE);
 
@@ -180,6 +181,17 @@ process_exit (void)
     free(to_free[j]);
   }
 
+  struct file_descriptor *temp2 = NULL;
+  while (!list_empty (&(current->file_descriptors)))
+  {
+      struct list_elem *e = list_pop_front (&(current->file_descriptors));
+      temp2 = list_entry(e, struct file_descriptor, elem);
+      struct file *curr_file = temp2->curr_file;
+      file_close(curr_file);
+      free(temp2);
+  }
+
+  
 
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
@@ -294,8 +306,12 @@ bool
 load (const char *file_name, void (**eip) (void), void **esp)
 {
   char *fn_copy = palloc_get_page(0);
+if (fn_copy == NULL)
+    return TID_ERROR;
   strlcpy(fn_copy, file_name, PGSIZE);
   char *fn_copy_2 = palloc_get_page(0);
+if (fn_copy_2 == NULL)
+    return TID_ERROR;
   strlcpy(fn_copy_2, file_name, PGSIZE);
 
   struct thread *t = thread_current ();
@@ -319,6 +335,9 @@ load (const char *file_name, void (**eip) (void), void **esp)
       printf ("load: %s: open failed\n", file_name);
       goto done;
     }
+
+  //add_file_descriptor(file);
+  file_deny_write (file);
 
   /* Read and verify executable header. */
   if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -538,6 +557,9 @@ setup_stack (void **esp, char *cmdline)
     }
 
   *esp = (void*)push_arguments(esp, cmdline);
+  if ((int)*esp == -1){
+    success = false;
+  }
   return success;
 }
 
@@ -547,6 +569,8 @@ static uint32_t *push_arguments(void **esp, char *cmdline) {
   /* Find the number of tokens on the command line */
   char *save_ptr;
   char *cmdline_copy = palloc_get_page(0);
+  if (cmdline_copy == NULL)
+    return -1;
   strlcpy(cmdline_copy, cmdline, PGSIZE);
   int num_tokens = 0;
   char *token = strtok_r(cmdline_copy, " ", &save_ptr);
