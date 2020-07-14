@@ -151,13 +151,14 @@ process_exit (void)
   /* I am child process, deal with parent*/
   lock_acquire(&(current->self_wait_status_t->lock));
   (current->self_wait_status_t->ref_count)--;
-  lock_release(&(current->self_wait_status_t->lock));
   if(current->self_wait_status_t->ref_count == 0){
     //parent already exited
+    lock_release(&(current->self_wait_status_t->lock));
     free(current->self_wait_status_t);
   }else{
     //parent not exited yet
-    //exit_code already stored by inturrupt handler
+    //exit_code already stored by interrupt handler
+    lock_release(&(current->self_wait_status_t->lock));
     sema_up(&(current->self_wait_status_t->sema));
   }
   /* I am parent process, deal with child list */
@@ -177,6 +178,7 @@ process_exit (void)
       to_free[i++] = temp;
     }
   }
+  /* free afterwards does not destory the list structure*/
   for(int j = 0; j < i; j++){
     free(to_free[j]);
   }
