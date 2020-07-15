@@ -22,4 +22,21 @@ test_main (void)
     if (buffer_1[0] != buffer_2[0] || buffer_1[1] != buffer_2[1]) {
         fail ("seek failed");
     }
+
+    int fd2;
+    CHECK ((fd2 = open("sample.txt")) > 1, "open \"sample.txt\" again");
+    seek (fd2, 20);
+    if(tell(fd2) != 20){
+        fail ("tell failed");
+    }
+
+    int result;
+    seek (fd, 10000);
+    result =  read(fd, buffer_1, 2);
+    if (result != 0){
+        fail ("error seeking past EOF");
+    }
+
+    seek (fd2, -1);
+    fail("should have returned -1");
 }

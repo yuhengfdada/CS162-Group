@@ -269,6 +269,7 @@ static void syscall_seek (struct intr_frame *f)
 {
   lock_acquire(&file_syscall_lock);
   uint32_t *args = (uint32_t *) f->esp;
+  if((int)args[2]<0) exception_exit(-1);
   int fd = args[1];
   unsigned position = args[2];
   struct file_descriptor *found = find_fd(fd);
