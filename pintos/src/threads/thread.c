@@ -611,7 +611,7 @@ allocate_tid (void)
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
-/* Given a file object, this helper functions returns the corresponding file descriptor. */
+/* Given a file object, this helper functions add curr_file to fd table, returns the corresponding fd. */
 int add_file_descriptor (struct file *curr_file) 
 {
   struct thread *t = thread_current();

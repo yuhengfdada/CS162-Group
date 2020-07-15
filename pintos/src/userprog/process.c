@@ -421,8 +421,6 @@ if (fn_copy_2 == NULL)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  // file_close (file);
-  
   palloc_free_page(fn_copy);
   palloc_free_page(fn_copy_2);
 
