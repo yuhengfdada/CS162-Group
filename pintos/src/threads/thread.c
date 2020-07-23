@@ -11,7 +11,6 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
-#include "threads/malloc.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -71,7 +70,6 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-static void init_wait_status (struct thread *t);
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -184,7 +182,6 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
-  init_wait_status(t);
 
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
@@ -205,23 +202,6 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   return tid;
-}
-
-/* init wait status struct for child thread t, and
-   add to parent's child list. */
-static void
-init_wait_status (struct thread *t)//called in 
-{
-  t->self_wait_status_t = malloc (sizeof (struct wait_status));
-  t->self_wait_status_t->exit_code = -1;
-  t->self_wait_status_t->ref_count = 2;
-  t->self_wait_status_t->child_pid = t->tid;
-  t->self_wait_status_t->waited = false;
-
-  lock_init (&(t->self_wait_status_t->lock));
-  sema_init (&(t->self_wait_status_t->sema), 0);
-  struct thread *parent = thread_current ();
-  list_push_back (&(parent->child_wait_status), &(t->self_wait_status_t->elem));
 }
 
 /* Puts the current thread to sleep.  It will not be scheduled
@@ -483,18 +463,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  //proj1
-  t->fd_count = 2;
-  list_init(&(t->child_wait_status));
-  list_init(&(t->file_descriptors));
-  //how to initialize self_wait_status_t?
 
-  //proj1
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
-  
-
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -610,15 +582,3 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
-
-/* Given a file object, this helper functions add curr_file to fd table, returns the corresponding fd. */
-int add_file_descriptor (struct file *curr_file) 
-{
-  struct thread *t = thread_current();
-  struct file_descriptor *curr_fd = (struct file_descriptor*)malloc(sizeof(struct file_descriptor));
-  curr_fd->fd = t->fd_count;
-  curr_fd->curr_file = curr_file;
-  list_push_back(&(t->file_descriptors), &(curr_fd->elem));
-  t->fd_count += 1;
-  return curr_fd->fd;
-}
