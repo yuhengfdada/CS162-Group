@@ -71,14 +71,16 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-//task2
-bool less_list (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+//proj2 task2
+bool is_less_priority_thread (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
   struct thread* t1 = list_entry(a,struct thread, elem);
   struct thread* t2 = list_entry(b,struct thread, elem);
-  if (t1->effective_priority > t2->effective_priority)
-  return true;
-  else
-  return false;
+  return (t1->effective_priority > t2->effective_priority) ? true : false;
+}
+bool is_less_priority_lock (const struct list_elem* a, const struct list_elem* b, void *aux UNUSED){
+  struct lock* l1 = list_entry(a, struct lock, hold_elem);
+  struct lock* l2 = list_entry(b, struct lock, hold_elem);
+  return (l1->lock_priority > l2->lock_priority) ? true : false;
 }
 
 
@@ -249,7 +251,7 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   //list_push_back (&ready_list, &t->elem);
-  list_insert_ordered(&ready_list, &t->elem, (list_less_func *) &less_list, NULL); //task2
+  list_insert_ordered(&ready_list, &t->elem, (list_less_func *) &is_less_priority_thread, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -321,7 +323,7 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread)
     //list_push_back (&ready_list, &cur->elem);
-    list_insert_ordered(&ready_list, &cur->elem, (list_less_func *) &less_list, NULL);
+    list_insert_ordered(&ready_list, &cur->elem, (list_less_func *) &is_less_priority_thread, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);

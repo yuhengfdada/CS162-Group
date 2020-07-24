@@ -83,7 +83,7 @@ typedef int tid_t;
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
 struct thread
-  {
+{
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
@@ -93,14 +93,18 @@ struct thread
     struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
+    /* 
+      list elem for ready list or wait list of sema, lock and CV, 
+      since at any time a thread can one thread can either:
+         on ready list, waiting to be scheduled
+         or on wait list a certen sema, lock or CV
+    */
     struct list_elem elem;              /* List element. */
 
-   // task2
-   struct list hold_lock_list; // list of all locks held by this thread
-	int effective_priority; // the effective priority of this thread
-   struct lock* lock_blocked; // thread is blocked on which lock
-
-
+    /* proj2-task2 */
+	 int effective_priority; /* the effective priority of current thread */
+    struct list hold_lock_list; /* list of all locks held by this thread */
+    struct lock* blocking_lock; /* which lock is blocking current thread */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -109,7 +113,7 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
-  };
+};
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -147,6 +151,7 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-bool less_list (const struct list_elem *a, const struct list_elem *b, void *aux);
+bool is_less_priority_thread (const struct list_elem *a, const struct list_elem *b, void *aux);
+bool is_less_priority_lock   (const struct list_elem *a, const struct list_elem *b, void *aux);
 
 #endif /* threads/thread.h */

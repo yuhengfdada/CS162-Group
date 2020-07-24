@@ -4,13 +4,11 @@
 #include <list.h>
 #include <stdbool.h>
 
-bool less_semaphore (const struct list_elem *a, const struct list_elem *b, void *aux);
-
 /* A counting semaphore. */
 struct semaphore
   {
     unsigned value;             /* Current value. */
-    struct list waiters;        /* List of waiting threads. */
+    struct list waiting_threads;        /* List of waiting threads. */
   };
 
 void sema_init (struct semaphore *, unsigned value);
@@ -23,11 +21,12 @@ void sema_self_test (void);
 struct lock
   {
     struct thread *holder;      /* Thread holding lock (for debugging). */
-    struct semaphore semaphore; /* Binary semaphore controlling access. */
-    struct list_elem sleep_elem; // to make a list
-    // struct list wait_list; // list of all threads blocking on the lock (semaphore waiters)
-	  int lock_priority; // the highest priority held by this lock
-
+    struct semaphore semaphore; 
+    /* Binary semaphore controlling access.
+       threads waiting for current lock will be put on lock.semaphore.waiting_threads */
+ 	  int lock_priority; 
+    /* lock_priority = Max_{all thread_i in lock.semaphore.waiting_threads}(thread_i.effective_priority) */
+    struct list_elem hold_elem; /* for thread.hold_lock_list */
   };
 
 void lock_init (struct lock *);
@@ -47,12 +46,6 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
-/* One semaphore in a list. */
-struct semaphore_elem
-  {
-    struct list_elem elem;              /* List element. */
-    struct semaphore semaphore;         /* This semaphore. */
-  };
 /* Optimization barrier.
 
    The compiler will not reorder operations across an
