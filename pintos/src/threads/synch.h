@@ -4,6 +4,8 @@
 #include <list.h>
 #include <stdbool.h>
 
+bool less_semaphore (const struct list_elem *a, const struct list_elem *b, void *aux);
+
 /* A counting semaphore. */
 struct semaphore
   {
@@ -22,6 +24,10 @@ struct lock
   {
     struct thread *holder;      /* Thread holding lock (for debugging). */
     struct semaphore semaphore; /* Binary semaphore controlling access. */
+    struct list_elem sleep_elem; // to make a list
+    // struct list wait_list; // list of all threads blocking on the lock (semaphore waiters)
+	  int lock_priority; // the highest priority held by this lock
+
   };
 
 void lock_init (struct lock *);
@@ -41,6 +47,12 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
+/* One semaphore in a list. */
+struct semaphore_elem
+  {
+    struct list_elem elem;              /* List element. */
+    struct semaphore semaphore;         /* This semaphore. */
+  };
 /* Optimization barrier.
 
    The compiler will not reorder operations across an
