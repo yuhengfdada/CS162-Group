@@ -8,11 +8,4 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (void);
 
-struct load_info
-{
-    char* file_name;
-    struct semaphore sema;
-    bool success;
-};
-
 #endif /* userprog/process.h */

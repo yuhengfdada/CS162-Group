@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include "threads/synch.h"
 #include "threads/fixed-point.h"
-#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -83,24 +82,6 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
-
-struct wait_status{
-    tid_t child_pid;
-    int exit_code;
-    int ref_count;
-    bool waited;              //prevent parent wait twice
-    struct semaphore sema;
-    struct lock lock;
-    struct list_elem elem;
-/*Use a double linked list(list.c) to keep track of all child processes. */
-};
-
-struct file_descriptor {
-   int fd;                    /* An int used to identify a file descriptor */
-   struct file *curr_file;    /* A pointer to a file struct as defined in file.c */
-   struct list_elem elem;
-};
-
 struct thread
   {
     /* Owned by thread.c. */
@@ -121,14 +102,6 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
-
-    /*added for wait, allocate in kernel heap*/
-    struct list child_wait_status;
-    struct wait_status* self_wait_status_t;
-
-    /* Added for file syscalls. */
-    int fd_count;                         /* Current number of file descriptors. */
-    struct list file_descriptors;        /* A list of file descriptors. */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -167,5 +140,4 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-int add_file_descriptor(struct file *);
 #endif /* threads/thread.h */
