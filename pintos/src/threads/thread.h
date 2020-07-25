@@ -149,7 +149,7 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 bool less_sleep(const struct list_elem *a, const struct list_elem *b, void *aux);
-bool less_list (const struct list_elem *a, const struct list_elem *b, void *aux);
+bool less_effective_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
 
 void thread_sleep(int64_t);
 void thread_wakeup(void);
