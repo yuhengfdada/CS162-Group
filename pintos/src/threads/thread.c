@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -27,6 +28,9 @@ static struct list ready_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
+
+/* List of processes that are put to sleep. */
+static struct list sleep_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -71,6 +75,17 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+//list_less_func for comparing the wakeup_time of sleeping threads
+bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+  struct thread *t1 = list_entry(a, struct thread, sleep_elem);
+  struct thread *t2 = list_entry(b, struct thread, sleep_elem);
+  if (t1->wakeup_time < t2->wakeup_time) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 //task2
 bool less_list (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
   struct thread* t1 = list_entry(a,struct thread, elem);
@@ -103,6 +118,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -602,3 +618,38 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/* This is a helper function for timer_sleep in timer.c
+   to put thread into sleep. */
+void thread_sleep(int64_t ticks) {
+  ASSERT(!intr_context());
+
+  struct thread *current = thread_current();
+  enum intr_level old_level = intr_disable();
+  if (current != idle_thread) {
+    current->wakeup_time = timer_ticks() + ticks;
+    list_insert_ordered(&sleep_list, &current->sleep_elem, (list_less_func *)&less_sleep, NULL);
+    thread_block();
+  }
+  intr_set_level(old_level);
+}
+
+/* This is a helper function for timer_interrupt in timer.c
+   to wake up thread at every timer interrupt. */
+void thread_wakeup() {
+  enum intr_level old_level = intr_disable();
+  struct thread *current = thread_current();
+  struct list_elem *e, *follower;
+  struct thread *head;
+  for (e = list_begin(&sleep_list); e != list_end(&sleep_list);) {
+    head = list_entry(e, struct thread, sleep_elem);
+    if (head->wakeup_time <= timer_ticks()) {
+      follower = list_remove(e);
+      thread_unblock(head);
+      e = follower;
+    } else {
+      break;
+    }
+  }
+  intr_set_level(old_level);
+}
