@@ -77,8 +77,8 @@ static tid_t allocate_tid (void);
 
 //list_less_func for comparing the wakeup_time of sleeping threads
 bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
-  struct thread *t1 = list_entry(a, struct thread, sleep_elem);
-  struct thread *t2 = list_entry(b, struct thread, sleep_elem);
+  struct thread *t1 = list_entry(a, struct thread, elem);
+  struct thread *t2 = list_entry(b, struct thread, elem);
   if (t1->wakeup_time < t2->wakeup_time) {
     return true;
   } else {
@@ -87,7 +87,7 @@ bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux
 }
 
 //task2
-bool less_list (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+bool less_effective_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
   struct thread* t1 = list_entry(a,struct thread, elem);
   struct thread* t2 = list_entry(b,struct thread, elem);
   if (t1->effective_priority > t2->effective_priority)
@@ -265,7 +265,7 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   //list_push_back (&ready_list, &t->elem);
-  list_insert_ordered(&ready_list, &t->elem, (list_less_func *) &less_list, NULL); //task2
+  list_insert_ordered(&ready_list, &t->elem, (list_less_func *) &less_effective_priority, NULL); //task2
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -337,7 +337,7 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread)
     //list_push_back (&ready_list, &cur->elem);
-    list_insert_ordered(&ready_list, &cur->elem, (list_less_func *) &less_list, NULL);
+    list_insert_ordered(&ready_list, &cur->elem, (list_less_func *) &less_effective_priority, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -364,7 +364,7 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
+  // thread_current ()->priority = new_priority;
   thread_current ()->effective_priority = new_priority; //task2, note it's effective_priority
   thread_yield();
 }
@@ -527,9 +527,7 @@ next_thread_to_run (void)
     return idle_thread;}
   else{
     return list_entry (list_pop_front (&ready_list), struct thread, elem);
-    //return list_entry (list_max(&ready_list, less_list, NULL), struct thread, elem);
   }
-    
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -628,7 +626,7 @@ void thread_sleep(int64_t ticks) {
   enum intr_level old_level = intr_disable();
   if (current != idle_thread) {
     current->wakeup_time = timer_ticks() + ticks;
-    list_insert_ordered(&sleep_list, &current->sleep_elem, (list_less_func *)&less_sleep, NULL);
+    list_insert_ordered(&sleep_list, &current->elem, (list_less_func *)&less_sleep, NULL);
     thread_block();
   }
   intr_set_level(old_level);
@@ -642,7 +640,7 @@ void thread_wakeup() {
   struct list_elem *e, *follower;
   struct thread *head;
   for (e = list_begin(&sleep_list); e != list_end(&sleep_list);) {
-    head = list_entry(e, struct thread, sleep_elem);
+    head = list_entry(e, struct thread, elem);
     if (head->wakeup_time <= timer_ticks()) {
       follower = list_remove(e);
       thread_unblock(head);
