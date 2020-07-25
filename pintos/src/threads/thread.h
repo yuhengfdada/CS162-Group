@@ -95,9 +95,11 @@ struct thread
    /* Shared between thread.c and synch.c. */
    struct list_elem elem;              /* List element. */
 
-   /* Task 1 members */
-   struct list_elem sleep_elem;
+   /* Task 1 members. */
    int64_t wakeup_time;
+
+   /* Task 2 members. */
+   int effective_priority;
 
 #ifdef USERPROG
    /* Owned by userprog/process.c. */
@@ -147,5 +149,9 @@ int thread_get_load_avg (void);
 /* Helper functions to avoid busy waiting. */
 void thread_sleep(int64_t);
 void thread_wakeup(void);
+
+/* list_less_than functions to compare two processes based on some attributes. */
+bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool less_effective_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 #endif /* threads/thread.h */

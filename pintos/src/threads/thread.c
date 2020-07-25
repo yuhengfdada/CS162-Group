@@ -76,9 +76,20 @@ static tid_t allocate_tid (void);
 
 /* list_less_func for comparing the wakeup_time of sleeping processes. */
 bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
-  struct thread *t1 = list_entry(a, struct thread, sleep_elem);
-  struct thread *t2 = list_entry(b, struct thread, sleep_elem);
+  struct thread *t1 = list_entry(a, struct thread, elem);
+  struct thread *t2 = list_entry(b, struct thread, elem);
   if (t1->wakeup_time < t2->wakeup_time) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+/* list_less_func for comparing the effective priority of processes. */
+bool less_effective_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+  struct thread *t1 = list_entry(a, struct thread, elem);
+  struct thread *t2 = list_entry(b, struct thread, elem);
+  if (t1->effective_priority > t2->effective_priority) {
     return true;
   } else {
     return false;
@@ -607,7 +618,7 @@ void thread_sleep(int64_t ticks) {
   enum intr_level old_level = intr_disable();
   if (current != idle_thread) {
     current->wakeup_time = timer_ticks() + ticks;
-    list_insert_ordered(&sleep_list, &current->sleep_elem, (list_less_func *)&less_sleep, NULL);
+    list_insert_ordered(&sleep_list, &current->elem, (list_less_func *)&less_sleep, NULL);
     thread_block();
   }
   intr_set_level(old_level);
@@ -621,7 +632,7 @@ void thread_wakeup() {
   struct list_elem *e, *follower;
   struct thread *head;
   for (e = list_begin(&sleep_list); e != list_end(&sleep_list);) {
-    head = list_entry(e, struct thread, sleep_elem);
+    head = list_entry(e, struct thread, elem);
     if (head->wakeup_time <= timer_ticks()) {
       follower = list_remove(e);
       thread_unblock(head);
