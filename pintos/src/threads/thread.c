@@ -118,6 +118,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -644,7 +645,6 @@ void thread_wakeup() {
     head = list_entry(e, struct thread, sleep_elem);
     if (head->wakeup_time <= timer_ticks()) {
       follower = list_remove(e);
-      head = list_entry(e, struct thread, sleep_elem);
       thread_unblock(head);
       e = follower;
     } else {
