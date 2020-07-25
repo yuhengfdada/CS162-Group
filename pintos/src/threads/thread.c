@@ -504,6 +504,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->effective_priority = priority; //task2
   list_init(&(t->hold_lock_list)); //task2
+  t->lock_blocked = NULL;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();

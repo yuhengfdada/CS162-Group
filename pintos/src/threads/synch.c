@@ -265,7 +265,16 @@ lock_held_by_current_thread (const struct lock *lock)
   return lock->holder == thread_current ();
 }
 
-
+void lock_donate (struct lock *lock) {
+  struct thread *current = thread_current();
+  struct thread *lock_holder = lock->holder;
+  if (current->priority > lock_holder->priority) {
+    lock_holder->effective_priority = current->effective_priority;
+    if (lock_holder->lock_blocked != NULL) {
+      lock_donate(lock_holder->lock_blocked);
+    }
+  }
+}
 
 /* Initializes condition variable COND.  A condition variable
    allows one piece of code to signal a condition and cooperating
