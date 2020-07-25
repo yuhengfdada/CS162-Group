@@ -95,22 +95,17 @@ struct thread
    /* Shared between thread.c and synch.c. */
    struct list_elem elem;              /* List element. */
 
-   // task 1
+   /* Task 1 members */
    struct list_elem sleep_elem;
    int64_t wakeup_time;
 
-   // task2
-   struct list hold_lock_list; // list of all locks held by this thread
-   int effective_priority; // the effective priority of this thread
-   struct lock* lock_blocked; // thread is blocked on which lock
-
 #ifdef USERPROG
-    /* Owned by userprog/process.c. */
-    uint32_t *pagedir;                  /* Page directory. */
+   /* Owned by userprog/process.c. */
+   uint32_t *pagedir;                  /* Page directory. */
 #endif
 
-    /* Owned by thread.c. */
-    unsigned magic;                     /* Detects stack overflow. */
+   /* Owned by thread.c. */
+   unsigned magic;                     /* Detects stack overflow. */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -149,9 +144,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-bool less_sleep(const struct list_elem *a, const struct list_elem *b, void *aux);
-bool less_list (const struct list_elem *a, const struct list_elem *b, void *aux);
-
+/* Helper functions to avoid busy waiting. */
 void thread_sleep(int64_t);
 void thread_wakeup(void);
+
 #endif /* threads/thread.h */
