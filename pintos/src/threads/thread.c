@@ -627,8 +627,8 @@ void thread_sleep(int64_t ticks) {
   enum intr_level old_level = intr_disable();
   if (current != idle_thread) {
     current->wakeup_time = timer_ticks() + ticks;
-    current->status = THREAD_BLOCKED;
     list_insert_ordered(&sleep_list, &current->sleep_elem, (list_less_func *)&less_sleep, NULL);
+    thread_block();
   }
   intr_set_level(old_level);
 }
@@ -644,6 +644,7 @@ void thread_wakeup() {
     head = list_entry(e, struct thread, sleep_elem);
     if (head->wakeup_time <= timer_ticks()) {
       follower = list_remove(e);
+      head = list_entry(e, struct thread, sleep_elem);
       thread_unblock(head);
       e = follower;
     } else {
