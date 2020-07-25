@@ -95,19 +95,21 @@ struct thread
    /* Shared between thread.c and synch.c. */
    struct list_elem elem;              /* List element. */
 
-   /* Task 1 members. */
+   // task 1
    int64_t wakeup_time;
 
-   /* Task 2 members. */
-   int effective_priority;
+   // task2
+   struct list hold_lock_list; // list of all locks held by this thread
+   int effective_priority; // the effective priority of this thread
+   struct lock* lock_blocked; // thread is blocked on which lock
 
 #ifdef USERPROG
-   /* Owned by userprog/process.c. */
-   uint32_t *pagedir;                  /* Page directory. */
+    /* Owned by userprog/process.c. */
+    uint32_t *pagedir;                  /* Page directory. */
 #endif
 
-   /* Owned by thread.c. */
-   unsigned magic;                     /* Detects stack overflow. */
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -146,12 +148,9 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-/* Helper functions to avoid busy waiting. */
+bool less_sleep(const struct list_elem *a, const struct list_elem *b, void *aux);
+bool less_list (const struct list_elem *a, const struct list_elem *b, void *aux);
+
 void thread_sleep(int64_t);
 void thread_wakeup(void);
-
-/* list_less_than functions to compare two processes based on some attributes. */
-bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
-bool less_effective_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
-
 #endif /* threads/thread.h */
