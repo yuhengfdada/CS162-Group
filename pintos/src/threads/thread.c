@@ -227,7 +227,11 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-  thread_yield(); //task2
+
+  /* Yield if incoming thread has a higher priority. */
+  if (t->priority > thread_get_priority()) {
+    thread_yield();
+  }
   return tid;
 }
 
@@ -364,9 +368,14 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  // thread_current ()->priority = new_priority;
-  thread_current ()->effective_priority = new_priority; //task2, note it's effective_priority
-  thread_yield();
+  thread_current ()->effective_priority = new_priority;
+  struct thread *next = next_thread_to_run();
+  if (next->effective_priority > new_priority) {
+    list_insert_ordered(&ready_list, &next->elem, (list_less_func *) &less_effective_priority, NULL);
+    thread_yield();
+  } else {
+    list_insert_ordered(&ready_list, &next->elem, (list_less_func *) &less_effective_priority, NULL);
+  }
 }
 
 /* Returns the current thread's priority. */
