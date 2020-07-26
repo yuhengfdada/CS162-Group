@@ -53,7 +53,6 @@ struct semaphore_elem
     struct semaphore semaphore;         /* This semaphore. */
   };
 /* Optimization barrier.
-
    The compiler will not reorder operations across an
    optimization barrier.  See "Optimization Barriers" in the
    reference guide for more information.*/
