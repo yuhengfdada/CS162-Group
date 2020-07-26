@@ -36,10 +36,7 @@ bool less_semaphore (const struct list_elem *a, const struct list_elem *b, void 
     return true;
   if (list_empty(&sa->semaphore.waiters))
     return false;
-  
-  list_sort(&sa -> semaphore.waiters, (list_less_func *) &less_effective_priority, NULL);
 
-  list_sort(&sb -> semaphore.waiters, (list_less_func *) &less_effective_priority, NULL);
   struct thread *ta = list_entry(list_front(&sa->semaphore.waiters), struct thread, elem);
   struct thread *tb = list_entry(list_front(&sb->semaphore.waiters), struct thread, elem);
   
@@ -272,7 +269,6 @@ lock_held_by_current_thread (const struct lock *lock)
 
 /* Donate priority. */
 void priority_donate (struct lock *lock) {
-  if(lock == NULL) return;
   struct thread *current = thread_current();
   struct thread *lock_holder = lock->holder;
   if (current->effective_priority > lock_holder->effective_priority) {
@@ -366,7 +362,6 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED)
   ASSERT (lock_held_by_current_thread (lock));
 
   if (!list_empty (&cond->waiters)){
-    list_sort(&cond->waiters, (list_less_func *) &less_semaphore, NULL);
     sema_up (&list_entry (list_pop_front (&cond->waiters),
                           struct semaphore_elem, elem)->semaphore);
   }
