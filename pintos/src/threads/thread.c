@@ -369,12 +369,9 @@ void
 thread_set_priority (int new_priority)
 {
   thread_current ()->effective_priority = new_priority;
-  struct thread *next = next_thread_to_run();
+  struct thread *next = list_entry(list_begin(&ready_list), struct thread, elem);
   if (next->effective_priority > new_priority) {
-    list_insert_ordered(&ready_list, &next->elem, (list_less_func *) &less_effective_priority, NULL);
     thread_yield();
-  } else {
-    list_insert_ordered(&ready_list, &next->elem, (list_less_func *) &less_effective_priority, NULL);
   }
 }
 
@@ -504,6 +501,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->effective_priority = priority; //task2
   list_init(&(t->hold_lock_list)); //task2
+  t->lock_blocked = NULL;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
