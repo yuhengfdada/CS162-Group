@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -27,6 +28,9 @@ static struct list ready_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
+
+/* List of processes that are put to sleep. */
+static struct list sleep_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -71,8 +75,19 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+//list_less_func for comparing the wakeup_time of sleeping threads
+bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+  struct thread *t1 = list_entry(a, struct thread, elem);
+  struct thread *t2 = list_entry(b, struct thread, elem);
+  if (t1->wakeup_time < t2->wakeup_time) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 //task2
-bool less_list (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+bool less_effective_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
   struct thread* t1 = list_entry(a,struct thread, elem);
   struct thread* t2 = list_entry(b,struct thread, elem);
   if (t1->effective_priority > t2->effective_priority)
@@ -103,6 +118,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -211,7 +227,11 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-  thread_yield(); //task2
+
+  /* Yield if incoming thread has a higher priority. */
+  if (priority > thread_get_priority()) {
+    thread_yield();
+  }
   return tid;
 }
 
@@ -249,7 +269,7 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
   //list_push_back (&ready_list, &t->elem);
-  list_insert_ordered(&ready_list, &t->elem, (list_less_func *) &less_list, NULL); //task2
+  list_insert_ordered(&ready_list, &t->elem, (list_less_func *) &less_effective_priority, NULL); //task2
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -321,7 +341,7 @@ thread_yield (void)
   old_level = intr_disable ();
   if (cur != idle_thread)
     //list_push_back (&ready_list, &cur->elem);
-    list_insert_ordered(&ready_list, &cur->elem, (list_less_func *) &less_list, NULL);
+    list_insert_ordered(&ready_list, &cur->elem, (list_less_func *) &less_effective_priority, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -348,9 +368,11 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current ()->priority = new_priority;
-  thread_current ()->effective_priority = new_priority; //task2, note it's effective_priority
-  thread_yield();
+  thread_current ()->effective_priority = new_priority;
+  struct thread *next = list_entry(list_begin(&ready_list), struct thread, elem);
+  if (next->effective_priority > new_priority) {
+    thread_yield();
+  }
 }
 
 /* Returns the current thread's priority. */
@@ -479,6 +501,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->effective_priority = priority; //task2
   list_init(&(t->hold_lock_list)); //task2
+  t->lock_blocked = NULL;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -511,9 +534,7 @@ next_thread_to_run (void)
     return idle_thread;}
   else{
     return list_entry (list_pop_front (&ready_list), struct thread, elem);
-    //return list_entry (list_max(&ready_list, less_list, NULL), struct thread, elem);
   }
-    
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -602,3 +623,38 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/* This is a helper function for timer_sleep in timer.c
+   to put thread into sleep. */
+void thread_sleep(int64_t ticks) {
+  ASSERT(!intr_context());
+
+  struct thread *current = thread_current();
+  enum intr_level old_level = intr_disable();
+  if (current != idle_thread) {
+    current->wakeup_time = timer_ticks() + ticks;
+    list_insert_ordered(&sleep_list, &current->elem, (list_less_func *)&less_sleep, NULL);
+    thread_block();
+  }
+  intr_set_level(old_level);
+}
+
+/* This is a helper function for timer_interrupt in timer.c
+   to wake up thread at every timer interrupt. */
+void thread_wakeup() {
+  enum intr_level old_level = intr_disable();
+  struct thread *current = thread_current();
+  struct list_elem *e, *follower;
+  struct thread *head;
+  for (e = list_begin(&sleep_list); e != list_end(&sleep_list);) {
+    head = list_entry(e, struct thread, elem);
+    if (head->wakeup_time <= timer_ticks()) {
+      follower = list_remove(e);
+      thread_unblock(head);
+      e = follower;
+    } else {
+      break;
+    }
+  }
+  intr_set_level(old_level);
+}
