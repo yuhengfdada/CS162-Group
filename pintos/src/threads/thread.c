@@ -229,7 +229,7 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 
   /* Yield if incoming thread has a higher priority. */
-  if (t->priority > thread_get_priority()) {
+  if (priority > thread_get_priority()) {
     thread_yield();
   }
   return tid;
