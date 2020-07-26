@@ -257,6 +257,8 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  list_remove(&lock->elem);
+  thread_current()->effective_priority = priority_reset();
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 }
@@ -272,6 +274,7 @@ lock_held_by_current_thread (const struct lock *lock)
   return lock->holder == thread_current ();
 }
 
+/* Donate priority. */
 void priority_donate (struct lock *lock) {
   struct thread *current = thread_current();
   struct thread *lock_holder = lock->holder;
@@ -281,6 +284,29 @@ void priority_donate (struct lock *lock) {
       priority_donate(lock_holder->lock_blocked);
     }
   }
+}
+
+/* Reset priority. */
+int priority_reset () {
+  struct thread *current = thread_current();
+  int curr_priority = current->priority;
+  struct list *l = &current->hold_lock_list;
+  
+  if (list_empty(l)) {
+    return curr_priority;
+  }
+
+  struct list_elem *e;
+  for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
+    struct semaphore *s = &list_entry(e, struct lock, elem)->semaphore;
+    if (!list_empty(&s->waiters)) {
+      int temp = list_entry(list_begin(&s->waiters), struct thread, elem)->effective_priority;
+      if (temp > curr_priority) {
+        curr_priority = temp;
+      }
+    }
+  }
+  return curr_priority;
 }
 
 /* Initializes condition variable COND.  A condition variable
