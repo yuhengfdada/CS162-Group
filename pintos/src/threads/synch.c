@@ -272,7 +272,7 @@ lock_held_by_current_thread (const struct lock *lock)
 
 /* Donate priority. */
 void priority_donate (struct lock *lock) {
-  if(!lock) return;
+  if(lock == NULL) return;
   struct thread *current = thread_current();
   struct thread *lock_holder = lock->holder;
   if (current->effective_priority > lock_holder->effective_priority) {
