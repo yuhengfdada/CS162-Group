@@ -29,26 +29,6 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
-// bool less_semaphore (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
-//   struct semaphore_elem *sa = list_entry(a, struct semaphore_elem, elem);
-//   struct semaphore_elem *sb = list_entry(b, struct semaphore_elem, elem);
-//   if (list_empty(&sb->semaphore.waiters))
-//     return false;
-//   if (list_empty(&sa->semaphore.waiters))
-//     return true;
-
-//   list_sort(&sa->semaphore.waiters, (list_less_func *)&less_effective_priority, NULL);
-//   list_sort(&sb->semaphore.waiters, (list_less_func *)&less_effective_priority, NULL);
-
-//   struct thread *ta = list_entry(list_front(&sa->semaphore.waiters), struct thread, elem);
-//   struct thread *tb = list_entry(list_front(&sb->semaphore.waiters), struct thread, elem);
-  
-//   if ((ta->effective_priority) > (tb->effective_priority))
-//     return true;
-//   else
-//     return false;
-// }
-
 bool less_cond (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
   struct semaphore_elem *sa = list_entry(a, struct semaphore_elem, elem);
   struct semaphore_elem *sb = list_entry(b, struct semaphore_elem, elem);
@@ -90,11 +70,10 @@ sema_down (struct semaphore *sema)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  while (sema->value == 0)
-    {
+  while (sema->value == 0) {
       list_insert_ordered(&sema->waiters, &thread_current()->elem, (list_less_func *) &less_effective_priority, NULL);
       thread_block ();
-    }
+  }
   sema->value--;
   intr_set_level (old_level);
 }
@@ -112,13 +91,12 @@ sema_try_down (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (sema->value > 0)
-    {
+  if (sema->value > 0) {
       sema->value--;
       success = true;
-    }
-  else
+  } else {
     success = false;
+  }
   intr_set_level (old_level);
 
   return success;
@@ -160,11 +138,10 @@ sema_self_test (void)
   sema_init (&sema[0], 0);
   sema_init (&sema[1], 0);
   thread_create ("sema-test", PRI_DEFAULT, sema_test_helper, &sema);
-  for (i = 0; i < 10; i++)
-    {
+  for (i = 0; i < 10; i++) {
       sema_up (&sema[0]);
       sema_down (&sema[1]);
-    }
+  }
   printf ("done.\n");
 }
 
@@ -175,11 +152,10 @@ sema_test_helper (void *sema_)
   struct semaphore *sema = sema_;
   int i;
 
-  for (i = 0; i < 10; i++)
-    {
+  for (i = 0; i < 10; i++) {
       sema_down (&sema[0]);
       sema_up (&sema[1]);
-    }
+  }
 }
 
 /* Initializes LOCK.  A lock can be held by at most a single
@@ -299,10 +275,9 @@ void priority_donate (struct lock *lock) {
 int priority_reset () {
   struct thread *current = thread_current();
   int curr_priority = current->priority;
-  struct list *l = &current->hold_lock_list;
 
   struct list_elem *e;
-  for (e = list_begin(l); e != list_end(l); e = list_next(e)) {
+  for (e = list_begin(&current->hold_lock_list); e != list_end(&current->hold_lock_list); e = list_next(e)) {
     struct semaphore *s = &list_entry(e, struct lock, elem)->semaphore;
     if (!list_empty(&s->waiters)) {
       list_sort(&s->waiters, (list_less_func *) &less_effective_priority, NULL);
@@ -356,7 +331,6 @@ cond_wait (struct condition *cond, struct lock *lock)
   sema_init (&waiter.semaphore, 0);
   waiter.priority = thread_get_priority();
   list_insert_ordered(&cond->waiters, &waiter.elem, (list_less_func *) &less_cond, NULL);
-  // list_push_back(&cond->waiters, &waiter.elem);
   lock_release (lock);
   sema_down (&waiter.semaphore);
   lock_acquire (lock);
