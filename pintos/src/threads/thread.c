@@ -74,9 +74,6 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-void thread_set_priority (int);
-int thread_get_priority (void);
-
 
 //list_less_func for comparing the wakeup_time of sleeping threads
 bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
@@ -89,7 +86,7 @@ bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux
   }
 }
 
-//task2
+//list_less_func for comparing the effective priority of two threads
 bool less_effective_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
   struct thread* t1 = list_entry(a,struct thread, elem);
   struct thread* t2 = list_entry(b,struct thread, elem);
@@ -98,7 +95,6 @@ bool less_effective_priority (const struct list_elem *a, const struct list_elem 
   else
   return false;
 }
-
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -368,8 +364,12 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority)
 {
-  thread_current()->priority = new_priority;
-  thread_current()->effective_priority = priority_reset();
+  struct thread *current = thread_current();
+  if (current->effective_priority == current->priority || new_priority > current->effective_priority) {
+    current->effective_priority = new_priority;
+  }
+  current->priority = new_priority;
+  list_sort(&ready_list, (list_less_func *) &less_effective_priority, NULL);
   struct thread *next = list_entry(list_begin(&ready_list), struct thread, elem);
   if (next->effective_priority > new_priority) {
     thread_yield();
@@ -531,6 +531,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list)){
     return idle_thread;}
   else{
+    list_sort(&ready_list, (list_less_func *) &less_effective_priority, NULL);
     return list_entry (list_pop_front (&ready_list), struct thread, elem);
   }
 }
