@@ -75,7 +75,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
-//list_less_func for comparing the wakeup_time of sleeping threads
+/* list_less_func for comparing the wakeup_time of sleeping threads. */
 bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
   struct thread *t1 = list_entry(a, struct thread, elem);
   struct thread *t2 = list_entry(b, struct thread, elem);
@@ -86,14 +86,15 @@ bool less_sleep (const struct list_elem *a, const struct list_elem *b, void *aux
   }
 }
 
-//list_less_func for comparing the effective priority of two threads
+/* list_less_func for comparing the effective priority of two threads. */
 bool less_effective_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
   struct thread* t1 = list_entry(a,struct thread, elem);
   struct thread* t2 = list_entry(b,struct thread, elem);
-  if (t1->effective_priority > t2->effective_priority)
-  return true;
-  else
-  return false;
+  if (t1->effective_priority > t2->effective_priority) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 /* Initializes the threading system by transforming the code
@@ -195,8 +196,6 @@ thread_create (const char *name, int priority,
 
   ASSERT (function != NULL);
 
- // int haha = thread_get_priority();
-
   /* Allocate thread. */
   t = palloc_get_page (PAL_ZERO);
   if (t == NULL)
@@ -223,9 +222,8 @@ thread_create (const char *name, int priority,
   sf->ebp = 0;
 
   /* Add to run queue. */
- // thread_set_priority(haha);
   thread_unblock (t);
-  //thread_set_priority(haha);
+
   /* Yield if incoming thread has a higher priority. */
   if (priority > thread_get_priority()) {
     thread_yield();
@@ -264,7 +262,6 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  //list_push_back (&ready_list, &t->elem);
   list_insert_ordered(&ready_list, &t->elem, (list_less_func *) &less_effective_priority, NULL); //task2
   t->status = THREAD_READY;
   intr_set_level (old_level);
@@ -335,9 +332,9 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
-  if (cur != idle_thread)
-    //list_push_back (&ready_list, &cur->elem);
+  if (cur != idle_thread) {
     list_insert_ordered(&ready_list, &cur->elem, (list_less_func *) &less_effective_priority, NULL);
+  }
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -497,9 +494,12 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  t->effective_priority = priority; //task2
-  list_init(&(t->hold_lock_list)); //task2
+
+  /* Initialize members for task 2. */
+  t->effective_priority = priority;
+  list_init(&(t->hold_lock_list));
   t->lock_blocked = NULL;
+
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -529,8 +529,8 @@ static struct thread *
 next_thread_to_run (void)
 {
   if (list_empty (&ready_list)){
-    return idle_thread;}
-  else{
+    return idle_thread;
+  } else{
     list_sort(&ready_list, (list_less_func *) &less_effective_priority, NULL);
     return list_entry (list_pop_front (&ready_list), struct thread, elem);
   }
@@ -596,8 +596,9 @@ schedule (void)
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
 
-  if (cur != next)
+  if (cur != next) {
     prev = switch_threads (cur, next);
+  }
   thread_schedule_tail (prev);
 }
 
@@ -638,7 +639,6 @@ void thread_sleep(int64_t ticks) {
    to wake up thread at every timer interrupt. */
 void thread_wakeup() {
   enum intr_level old_level = intr_disable();
-  struct thread *current = thread_current();
   struct list_elem *e, *follower;
   struct thread *head;
   for (e = list_begin(&sleep_list); e != list_end(&sleep_list);) {

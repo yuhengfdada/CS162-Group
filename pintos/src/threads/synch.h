@@ -4,9 +4,6 @@
 #include <list.h>
 #include <stdbool.h>
 
-// bool less_semaphore (const struct list_elem *a, const struct list_elem *b, void *aux);
-bool less_cond (const struct list_elem *a, const struct list_elem *b, void *aux);
-
 /* A counting semaphore. */
 struct semaphore
   {
@@ -52,8 +49,12 @@ struct semaphore_elem
   {
     struct list_elem elem;              /* List element. */
     struct semaphore semaphore;         /* This semaphore. */
-    int priority;
+    int priority;                       /* Priority of the waiting thread. */
   };
+
+/* list_less_func for comparing two semaphore_elem. */
+bool less_cond (const struct list_elem *a, const struct list_elem *b, void *aux);
+
 /* Optimization barrier.
    The compiler will not reorder operations across an
    optimization barrier.  See "Optimization Barriers" in the

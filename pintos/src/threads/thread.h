@@ -89,10 +89,10 @@ struct thread
    /* Shared between thread.c and synch.c. */
    struct list_elem elem;              /* List element. */
 
-   // task 1
+   /* task 1 */
    int64_t wakeup_time;
 
-   // task2
+   /* task 2 */
    struct list hold_lock_list; // list of all locks held by this thread
    int effective_priority; // the effective priority of this thread
    struct lock* lock_blocked; // thread is blocked on which lock
@@ -142,9 +142,11 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+/* list_less_func functions for task 1 and task 2. */
 bool less_sleep(const struct list_elem *a, const struct list_elem *b, void *aux);
 bool less_effective_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
 
+/* Helper functions to put threads to sleep and wake them up. Task 1. */
 void thread_sleep(int64_t);
 void thread_wakeup(void);
 #endif /* threads/thread.h */
