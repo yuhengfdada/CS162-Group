@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "threads/synch.h"
 #include "threads/fixed-point.h"
+#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -27,11 +28,13 @@ typedef int tid_t;
 #define PRI_MAX 63                      /* Highest priority. */
 
 /* A kernel thread or user process.
+
    Each thread structure is stored in its own 4 kB page.  The
    thread structure itself sits at the very bottom of the page
    (at offset 0).  The rest of the page is reserved for the
    thread's kernel stack, which grows downward from the top of
    the page (at offset 4 kB).  Here's an illustration:
+
         4 kB +---------------------------------+
              |          kernel stack           |
              |                |                |
@@ -53,18 +56,22 @@ typedef int tid_t;
              |               name              |
              |              status             |
         0 kB +---------------------------------+
+
    The upshot of this is twofold:
+
       1. First, `struct thread' must not be allowed to grow too
          big.  If it does, then there will not be enough room for
          the kernel stack.  Our base `struct thread' is only a
          few bytes in size.  It probably should stay well under 1
          kB.
+
       2. Second, kernel stacks must not be allowed to grow too
          large.  If a stack overflows, it will corrupt the thread
          state.  Thus, kernel functions should not allocate large
          structures or arrays as non-static local variables.  Use
          dynamic allocation with malloc() or palloc_get_page()
          instead.
+
    The first symptom of either of these problems will probably be
    an assertion failure in thread_current(), which checks that
    the `magic' member of the running thread's `struct thread' is
@@ -76,26 +83,36 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+
+struct wait_status{
+    tid_t child_pid;
+    int exit_code;
+    int ref_count;
+    bool waited;              //prevent parent wait twice
+    struct semaphore sema;
+    struct lock lock;
+    struct list_elem elem;
+/*Use a double linked list(list.c) to keep track of all child processes. */
+};
+
+struct file_descriptor {
+   int fd;                    /* An int used to identify a file descriptor */
+   struct file *curr_file;    /* A pointer to a file struct as defined in file.c */
+   struct list_elem elem;
+};
+
 struct thread
   {
-   /* Owned by thread.c. */
-   tid_t tid;                          /* Thread identifier. */
-   enum thread_status status;          /* Thread state. */
-   char name[16];                      /* Name (for debugging purposes). */
-   uint8_t *stack;                     /* Saved stack pointer. */
-   int priority;                       /* Priority. */
-   struct list_elem allelem;           /* List element for all threads list. */
+    /* Owned by thread.c. */
+    tid_t tid;                          /* Thread identifier. */
+    enum thread_status status;          /* Thread state. */
+    char name[16];                      /* Name (for debugging purposes). */
+    uint8_t *stack;                     /* Saved stack pointer. */
+    int priority;                       /* Priority. */
+    struct list_elem allelem;           /* List element for all threads list. */
 
-   /* Shared between thread.c and synch.c. */
-   struct list_elem elem;              /* List element. */
-
-   /* task 1 */
-   int64_t wakeup_time;
-
-   /* task 2 */
-   struct list hold_lock_list; // list of all locks held by this thread
-   int effective_priority; // the effective priority of this thread
-   struct lock* lock_blocked; // thread is blocked on which lock
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
@@ -104,6 +121,14 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    /*added for wait, allocate in kernel heap*/
+    struct list child_wait_status;
+    struct wait_status* self_wait_status_t;
+
+    /* Added for file syscalls. */
+    int fd_count;                         /* Current number of file descriptors. */
+    struct list file_descriptors;        /* A list of file descriptors. */
   };
 
 /* If false (default), use round-robin scheduler.
@@ -142,11 +167,5 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-/* list_less_func functions for task 1 and task 2. */
-bool less_sleep(const struct list_elem *a, const struct list_elem *b, void *aux);
-bool less_effective_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
-
-/* Helper functions to put threads to sleep and wake them up. Task 1. */
-void thread_sleep(int64_t);
-void thread_wakeup(void);
+int add_file_descriptor(struct file *);
 #endif /* threads/thread.h */
