@@ -6,6 +6,7 @@
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
 #include "filesys/directory.h"
+#include "filesys/bufcache.h"
 
 /* Partition that contains the file system. */
 struct block *fs_device;
@@ -50,7 +51,7 @@ filesys_create (const char *name, off_t initial_size)
   struct dir *dir = dir_open_root ();
   bool success = (dir != NULL
                   && free_map_allocate (1, &inode_sector)
-                  && inode_create (inode_sector, initial_size)
+                  && inode_create (inode_sector, initial_size, true)
                   && dir_add (dir, name, inode_sector));
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);

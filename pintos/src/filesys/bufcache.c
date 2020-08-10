@@ -1,4 +1,5 @@
-#include "bufcache.h"
+#include <debug.h>
+#include "filesys/bufcache.h"
 #include "threads/synch.h"
 #include "filesys/filesys.h"
 
@@ -34,7 +35,7 @@ static void replace(struct bufcache_entry* entry, block_sector_t sector);
 static struct bufcache_entry* bufcache_access(block_sector_t sector, bool blind);
 
 
-void bufcache_init()
+void bufcache_init(void)
 {
     list_init(& (bufcache.lru_list));
     lock_init(& (bufcache.cache_lock));
@@ -159,7 +160,7 @@ void bufcache_write(block_sector_t sector, const void* buffer, size_t offset, si
     lock_release(&bufcache.cache_lock);
 }
 
-void bufcache_flush()
+void bufcache_flush(void)
 {
     for(int i = 0; i < NUM_ENTRIES; i++){
         if (bufcache.entries[i].dirty) clean(&bufcache.entries[i]);

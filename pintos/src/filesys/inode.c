@@ -69,7 +69,13 @@ static void inode_deallocate (struct inode *inode);
 static void inode_deallocate_indirect (block_sector_t sector_num, size_t cnt);
 static void inode_deallocate_doubly_indirect (block_sector_t sector_num, size_t cnt);
 
+struct inode_disk *
+get_inode_disk (const struct inode *inode);
+bool
+inode_is_dir (const struct inode *inode);
 
+bool
+inode_is_removed (const struct inode *inode);
 /* Returns the block device sector that contains byte offset POS
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
@@ -522,7 +528,7 @@ inode_deallocate (struct inode *inode)
   size_t i, j, num_sectors = bytes_to_sectors (length);
 
   /* Deallocate direct blocks */
-  j = min (num_sectors, NUM_DIRECT);
+  j = MIN (num_sectors, NUM_DIRECT);
   for (i = 0; i < j; i++)
     free_map_release (disk_inode->direct[i], 1);
   num_sectors -= j;
@@ -533,7 +539,7 @@ inode_deallocate (struct inode *inode)
     }
 
   /* Deallocate indirect block */
-  j = min (num_sectors, NUM_S_INDIRECT);
+  j = MIN (num_sectors, NUM_S_INDIRECT);
   inode_deallocate_indirect (disk_inode->s_indirect, j);
   num_sectors -= j;
   if (num_sectors == 0)
@@ -543,7 +549,7 @@ inode_deallocate (struct inode *inode)
     }
 
   /* Deallocate doubly indirect block */
-  j = min (num_sectors, NUM_D_INDIRECT);
+  j = MIN (num_sectors, NUM_D_INDIRECT);
   inode_deallocate_doubly_indirect (disk_inode->d_indirect, j);
   num_sectors -= j;
 
@@ -573,7 +579,7 @@ inode_deallocate_doubly_indirect (block_sector_t sector_num, size_t cnt)
   size_t num_sectors, i, j = DIV_ROUND_UP (cnt, NUM_PTR_PER_BLOCK);
   for (i = 0; i < j; i++)
     {
-      num_sectors = min (cnt, NUM_PTR_PER_BLOCK);
+      num_sectors = MIN (cnt, NUM_PTR_PER_BLOCK);
       inode_deallocate_indirect (indirect_block.block[i], num_sectors);
       cnt -= num_sectors;
     }
