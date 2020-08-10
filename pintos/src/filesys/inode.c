@@ -69,6 +69,9 @@ static void inode_deallocate (struct inode *inode);
 static void inode_deallocate_indirect (block_sector_t sector_num, size_t cnt);
 static void inode_deallocate_doubly_indirect (block_sector_t sector_num, size_t cnt);
 
+/* helper function, call bufcache_read, read in entir inode*/
+struct inode_disk* get_inode_disk(const struct inode *inode);
+
 
 /* Returns the block device sector that contains byte offset POS
    within INODE.
@@ -137,7 +140,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length, bool isdir)
+inode_create (block_sector_t sector, off_t length)
 {
   bool success = false;
 
@@ -150,7 +153,7 @@ inode_create (block_sector_t sector, off_t length, bool isdir)
 
   /* init disk_inode */
   struct inode_disk disk_inode;
-  disk_inode.isdir = isdir;
+  disk_inode.isdir = false;
   disk_inode.length = length;
   disk_inode.magic  = INODE_MAGIC;
   if (inode_allocate (&disk_inode, length)){
@@ -422,9 +425,9 @@ inode_allocate (struct inode_disk *disk_inode, off_t length)
   /* temp store ptr in this array while allocating them */
   block_sector_t disk_sectors[num_sectors];
 
-  /* Allocate Direct Blocks */
+  /* Allocate all Blocks */
   for (size_t i = 0; i < num_sectors; i++){
-    if (!inode_allocate_sector (disk_sectors[i])){
+    if (!inode_allocate_sector ( &disk_sectors[i] )){
       goto roll_back;
     }
     bitmap_set(task, i, true);
@@ -435,7 +438,7 @@ inode_allocate (struct inode_disk *disk_inode, off_t length)
   /* TODO: set pointers in inode to these sector */
   /* set direct pointers */
   num = MIN(num_sectors, NUM_DIRECT);
-  for(int i = 0; i < num; i++){
+  for(unsigned i = 0; i < num; i++){
     disk_inode->direct[i] = disk_sectors[i];
   }
   num_sectors -= num;
@@ -450,7 +453,7 @@ inode_allocate (struct inode_disk *disk_inode, off_t length)
   struct indirect_block s_indirect;
   bufcache_read(disk_inode->s_indirect, &s_indirect, 0, BLOCK_SECTOR_SIZE);
   
-  for(int i = 0; i < num; i++){
+  for(unsigned i = 0; i < num; i++){
     s_indirect.block[i] = disk_sectors[i + NUM_DIRECT];
   }
   
@@ -466,10 +469,10 @@ inode_allocate (struct inode_disk *disk_inode, off_t length)
   inode_allocate_sector(&disk_inode->d_indirect);  /*allocate d_indirect_table block */
 
   size_t num_d_indirect = DIV_ROUND_UP(num, NUM_PTR_PER_BLOCK);
-  for(int j = 0; j < num_d_indirect; j++){  /* for each d_indirect block */
+  for(unsigned j = 0; j < num_d_indirect; j++){  /* for each d_indirect block */
     inode_allocate_sector(&d_indirect_table.block[j]);
     size_t num_in_this_block = MIN(NUM_PTR_PER_BLOCK, num - j*NUM_PTR_PER_BLOCK);
-    for(int i = 0; i < num_in_this_block; i++){
+    for(unsigned i = 0; i < num_in_this_block; i++){
       d_indirect.block[i] = disk_sectors[i + j*NUM_PTR_PER_BLOCK + NUM_S_INDIRECT + NUM_DIRECT];
     }
     bufcache_write(d_indirect_table.block[j], &d_indirect, 0, BLOCK_SECTOR_SIZE); /*write back the d_indirect */
@@ -485,7 +488,7 @@ done:
   /* when something goes wrong, we roll back based on bitmap task */
 roll_back:
 
-  for(int i = 0; i < num_sectors; i++){
+  for(unsigned i = 0; i < num_sectors; i++){
     if(bitmap_test(task, i)){
       free_map_release(disk_sectors[i], 1);
     }
@@ -522,7 +525,7 @@ inode_deallocate (struct inode *inode)
   size_t i, j, num_sectors = bytes_to_sectors (length);
 
   /* Deallocate direct blocks */
-  j = min (num_sectors, NUM_DIRECT);
+  j = MIN (num_sectors, NUM_DIRECT);
   for (i = 0; i < j; i++)
     free_map_release (disk_inode->direct[i], 1);
   num_sectors -= j;
@@ -533,7 +536,7 @@ inode_deallocate (struct inode *inode)
     }
 
   /* Deallocate indirect block */
-  j = min (num_sectors, NUM_S_INDIRECT);
+  j = MIN (num_sectors, NUM_S_INDIRECT);
   inode_deallocate_indirect (disk_inode->s_indirect, j);
   num_sectors -= j;
   if (num_sectors == 0)
@@ -543,7 +546,7 @@ inode_deallocate (struct inode *inode)
     }
 
   /* Deallocate doubly indirect block */
-  j = min (num_sectors, NUM_D_INDIRECT);
+  j = MIN (num_sectors, NUM_D_INDIRECT);
   inode_deallocate_doubly_indirect (disk_inode->d_indirect, j);
   num_sectors -= j;
 
@@ -573,7 +576,7 @@ inode_deallocate_doubly_indirect (block_sector_t sector_num, size_t cnt)
   size_t num_sectors, i, j = DIV_ROUND_UP (cnt, NUM_PTR_PER_BLOCK);
   for (i = 0; i < j; i++)
     {
-      num_sectors = min (cnt, NUM_PTR_PER_BLOCK);
+      num_sectors = MIN (cnt, NUM_PTR_PER_BLOCK);
       inode_deallocate_indirect (indirect_block.block[i], num_sectors);
       cnt -= num_sectors;
     }

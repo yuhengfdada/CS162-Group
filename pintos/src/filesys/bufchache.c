@@ -19,7 +19,7 @@ struct bufcache{
     struct bufcache_entry entries[NUM_ENTRIES];
     struct lock cache_lock;
     struct list lru_list;
-    unsigned num_ready;
+    int num_ready;
     struct condition until_one_ready;
 };
 
@@ -56,7 +56,7 @@ static struct bufcache_entry* get_eviction_candidate(void){
         return NULL;
     }
     struct bufcache_entry* candidate = list_entry(list_back(&(bufcache.lru_list)), struct bufcache_entry, lru_elem);
-    /* entry farthest back in the lru_list where ready == true /**/
+    /* entry farthest back in the lru_list where ready == true */
     while(candidate->ready == false){
         candidate = list_entry(list_prev(&(candidate->lru_elem)), struct bufcache_entry, lru_elem);
     }
