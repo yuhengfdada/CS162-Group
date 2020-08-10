@@ -1,6 +1,6 @@
 #include "bufcache.h"
 #include "threads/synch.h"
-
+#include "filesys/filesys.h"
 
 struct bufcache_entry {
     block_sector_t sector;
@@ -81,10 +81,7 @@ static void clean(struct bufcache_entry* entry)
     bufcache.num_ready--;
     lock_release(&(bufcache.cache_lock));
 
-    /* To Do: write data in this entry to disk using blcok write() */
-    /* not sure if using BLOCK_FILESYS) */
-    block_write(block_get_role(BLOCK_FILESYS) , entry->sector , &(entry->data));
-
+    block_write(fs_device, entry->sector , &(entry->data)); //shouldn't be a problem; just following the skeleton code
     lock_acquire(&(bufcache.cache_lock));
     entry->ready = true;
     bufcache.num_ready++;
@@ -103,7 +100,7 @@ static void replace(struct bufcache_entry* entry, block_sector_t sector)
     lock_release(&bufcache.cache_lock);
     
     /* read from disk */
-    block_read(block_get_role(BLOCK_FILESYS), sector, &(entry->data));
+    block_read(fs_device, sector, &(entry->data));
     
     lock_acquire(&bufcache.cache_lock);
     entry->ready = true;
@@ -160,4 +157,11 @@ void bufcache_write(block_sector_t sector, const void* buffer, size_t offset, si
     memcpy(&entry->data[offset], buffer, length);
     entry->dirty = true;
     lock_release(&bufcache.cache_lock);
+}
+
+void bufcache_flush()
+{
+    for(int i = 0; i < NUM_ENTRIES; i++){
+        if (bufcache.entries[i].dirty) clean(&bufcache.entries[i]);
+    }
 }

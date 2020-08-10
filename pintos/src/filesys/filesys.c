@@ -35,6 +35,7 @@ filesys_init (bool format)
 void
 filesys_done (void)
 {
+  bufcache_flush();
   free_map_close ();
 }
 
