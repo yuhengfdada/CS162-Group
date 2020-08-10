@@ -1,4 +1,5 @@
 #include <debug.h>
+#include <string.h>
 #include "filesys/bufcache.h"
 #include "threads/synch.h"
 #include "filesys/filesys.h"
@@ -57,7 +58,7 @@ static struct bufcache_entry* get_eviction_candidate(void){
         return NULL;
     }
     struct bufcache_entry* candidate = list_entry(list_back(&(bufcache.lru_list)), struct bufcache_entry, lru_elem);
-    /* entry farthest back in the lru_list where ready == true /**/
+    /* entry farthest back in the lru_list where ready == true */
     while(candidate->ready == false){
         candidate = list_entry(list_prev(&(candidate->lru_elem)), struct bufcache_entry, lru_elem);
     }
@@ -162,7 +163,9 @@ void bufcache_write(block_sector_t sector, const void* buffer, size_t offset, si
 
 void bufcache_flush(void)
 {
+    lock_acquire(&bufcache.cache_lock);
     for(int i = 0; i < NUM_ENTRIES; i++){
         if (bufcache.entries[i].dirty) clean(&bufcache.entries[i]);
     }
+    lock_release(&bufcache.cache_lock);
 }
