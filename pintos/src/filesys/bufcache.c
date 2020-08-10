@@ -1,4 +1,5 @@
 #include <debug.h>
+#include <string.h>
 #include "filesys/bufcache.h"
 #include "threads/synch.h"
 #include "filesys/filesys.h"
@@ -157,12 +158,14 @@ void bufcache_write(block_sector_t sector, const void* buffer, size_t offset, si
     struct bufcache_entry* entry = bufcache_access(sector, length == BLOCK_SECTOR_SIZE);
     memcpy(&entry->data[offset], buffer, length);
     entry->dirty = true;
-    lock_release(&bufcache.cache_lock);
+    lock_acquire(&bufcache.cache_lock);lock_acquire(&bufcache.cache_lock);
 }
 
 void bufcache_flush(void)
 {
+    lock_acquire(&bufcache.cache_lock);
     for(int i = 0; i < NUM_ENTRIES; i++){
         if (bufcache.entries[i].dirty) clean(&bufcache.entries[i]);
     }
+    lock_acquire(&bufcache.cache_lock);
 }
