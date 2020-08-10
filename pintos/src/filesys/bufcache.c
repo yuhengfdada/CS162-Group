@@ -15,7 +15,7 @@ struct bufcache_entry {
 
 
 #define NUM_ENTRIES 64
-#define INVALID_SECTOR 0
+#define INVALID_SECTOR 0xffff
 
 struct bufcache{
     struct bufcache_entry entries[NUM_ENTRIES];
