@@ -7,18 +7,35 @@
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
 #include "filesys/bufcache.h"
+
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
+
+/* Identify number of direct blocks and indirect blocks in a sector. */
+#define DIRECT_BLOCK_COUNT 123
+#define INDIRECT_BLOCK_COUNT 128
 
 /* On-disk inode.
    Must be exactly BLOCK_SECTOR_SIZE bytes long. */
 struct inode_disk
   {
-    block_sector_t start;               /* First data sector. */
-    off_t length;                       /* File size in bytes. */
-    unsigned magic;                     /* Magic number. */
-    uint32_t unused[125];               /* Not used. */
+    block_sector_t direct_blocks[DIRECT_BLOCK_COUNT];     /* Pointer to direct blocks. */
+    block_sector_t indirect_block;                        /* Pointer to an indirect block. */
+    block_sector_t doubly_indirect_block;                 /* Pointer to a doubly indirect block. */
+    bool isdir;                                           /* Whether it is a directory or file. */
+    off_t length;                                         /* File size in bytes. */
+    unsigned magic;                                       /* Magic number. */
+
+    // block_sector_t start;               /* First data sector. */
+    // off_t length;                       /* File size in bytes. */
+    // unsigned magic;                     /* Magic number. */
+    // uint32_t unused[125];               /* Not used. */
   };
+
+/* Struct definition for indirect blocks. */
+struct indirect_block {
+  block_sector_t blocks[INDIRECT_BLOCK_COUNT];
+};
 
 /* Returns the number of sectors to allocate for an inode SIZE
    bytes long. */
