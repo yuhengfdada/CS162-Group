@@ -4,6 +4,7 @@
 #include "threads/synch.h"
 #include "filesys/filesys.h"
 
+/* A buffer cache entry and its metadata. */
 struct bufcache_entry {
     block_sector_t sector;
     struct list_elem lru_elem;
@@ -13,29 +14,29 @@ struct bufcache_entry {
     uint8_t data[BLOCK_SECTOR_SIZE];
 };
 
-
 #define NUM_ENTRIES 64
 #define INVALID_SECTOR 0xffff
 
+/* A struct for the entire buffer cache. */
 struct bufcache{
     struct bufcache_entry entries[NUM_ENTRIES];
     struct lock cache_lock;
     struct list lru_list;
-    unsigned num_ready;
     struct condition until_one_ready;
+    unsigned num_ready; // Number of buffer cache entries that are ready
 };
 
-/* the buffer cache maintained by OS */
+/* The buffer cache maintained by OS. */
 static struct bufcache bufcache;
 
-/* internal helper functions */
+/* Internal helper functions that assume the caller already holds the cache_lock. */
 static struct bufcache_entry* get_eviction_candidate(void);
 static struct bufcache_entry* find(block_sector_t sector);
 static void clean(struct bufcache_entry* entry);
 static void replace(struct bufcache_entry* entry, block_sector_t sector);
 static struct bufcache_entry* bufcache_access(block_sector_t sector, bool blind);
 
-
+/* Initialize the entire buffer cache by initializing all the locks and conditional variables. */
 void bufcache_init(void)
 {
     list_init(& (bufcache.lru_list));
@@ -51,7 +52,7 @@ void bufcache_init(void)
     }
 }
 
-
+/* Return the last bufcache_entry in the list that is also ready. Otherwise, return NULL. */
 static struct bufcache_entry* get_eviction_candidate(void){
     ASSERT(lock_held_by_current_thread(&bufcache.cache_lock));
     if(bufcache.num_ready == 0){
@@ -65,6 +66,7 @@ static struct bufcache_entry* get_eviction_candidate(void){
     return candidate;
 }
 
+/* Return a bufcache_entry with matching sector. Otherwise, return NULL. */
 static struct bufcache_entry* find(block_sector_t sector)
 {
     for(int i = 0; i < NUM_ENTRIES; i++){
@@ -75,6 +77,7 @@ static struct bufcache_entry* find(block_sector_t sector)
     return NULL;
 }
 
+/* Write back an entry inside bufcache to the disk. */
 static void clean(struct bufcache_entry* entry)
 {
     ASSERT(lock_held_by_current_thread(&(bufcache.cache_lock)));
@@ -83,7 +86,9 @@ static void clean(struct bufcache_entry* entry)
     bufcache.num_ready--;
     lock_release(&(bufcache.cache_lock));
 
-    block_write(fs_device, entry->sector , &(entry->data)); //shouldn't be a problem; just following the skeleton code
+    /* Write to disk. */
+    block_write(fs_device, entry->sector , &(entry->data));
+
     lock_acquire(&(bufcache.cache_lock));
     entry->ready = true;
     bufcache.num_ready++;
@@ -92,6 +97,7 @@ static void clean(struct bufcache_entry* entry)
     cond_broadcast(&bufcache.until_one_ready, &(bufcache.cache_lock));
 }
 
+/* Read an entry in bufcache from the disk. */
 static void replace(struct bufcache_entry* entry, block_sector_t sector)
 {
     ASSERT(lock_held_by_current_thread(&bufcache.cache_lock));
@@ -101,7 +107,7 @@ static void replace(struct bufcache_entry* entry, block_sector_t sector)
     bufcache.num_ready--;
     lock_release(&bufcache.cache_lock);
     
-    /* read from disk */
+    /* Read from disk */
     block_read(fs_device, sector, &(entry->data));
     
     lock_acquire(&bufcache.cache_lock);
@@ -111,6 +117,7 @@ static void replace(struct bufcache_entry* entry, block_sector_t sector)
     cond_broadcast(&bufcache.until_one_ready, &(bufcache.cache_lock));
 }
 
+/* Look inside bufcache for an entry with matching sector, and this might involve eviction. */
 static struct bufcache_entry* bufcache_access(block_sector_t sector, bool blind)
 {
     ASSERT(lock_held_by_current_thread(&bufcache.cache_lock));
@@ -121,7 +128,7 @@ static struct bufcache_entry* bufcache_access(block_sector_t sector, bool blind)
                 cond_wait(&match->until_ready, &bufcache.cache_lock);
                 continue;
             }
-            /* move match to front */
+            /* Move match to front. */
             list_remove(&(match->lru_elem));
             list_push_front(&(bufcache.lru_list), &(match->lru_elem));
             return match;
@@ -137,11 +144,10 @@ static struct bufcache_entry* bufcache_access(block_sector_t sector, bool blind)
         } else {
             replace(to_evict, sector);
         }
-    } // end while
+    }
 }
 
-
-/* external API */
+/* The following three functions are external API. */
 void bufcache_read (block_sector_t sector, void* buffer, size_t offset, size_t length)
 {
     ASSERT(offset + length <= BLOCK_SECTOR_SIZE);
@@ -165,7 +171,9 @@ void bufcache_flush(void)
 {
     lock_acquire(&bufcache.cache_lock);
     for(int i = 0; i < NUM_ENTRIES; i++){
-        if (bufcache.entries[i].dirty) clean(&bufcache.entries[i]);
+        if (bufcache.entries[i].dirty) {
+            clean(&bufcache.entries[i]);
+        }
     }
     lock_release(&bufcache.cache_lock);
 }
