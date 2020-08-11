@@ -7,6 +7,7 @@
 #include "filesys/free-map.h"
 #include "threads/malloc.h"
 #include "filesys/bufcache.h"
+#include "threads/synch.h"
 
 /* Identifies an inode. */
 #define INODE_MAGIC 0x494e4f44
@@ -25,11 +26,6 @@ struct inode_disk
     bool isdir;                                           /* Whether it is a directory or file. */
     off_t length;                                         /* File size in bytes. */
     unsigned magic;                                       /* Magic number. */
-
-    // block_sector_t start;               /* First data sector. */
-    // off_t length;                       /* File size in bytes. */
-    // unsigned magic;                     /* Magic number. */
-    // uint32_t unused[125];               /* Not used. */
   };
 
 /* Struct definition for indirect blocks. */
@@ -52,8 +48,12 @@ struct inode
     block_sector_t sector;              /* Sector number of disk location. */
     int open_cnt;                       /* Number of openers. */
     bool removed;                       /* True if deleted, false otherwise. */
+    bool extended;                      /* Whether the file is extended or not. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct inode_disk data;             /* Inode content. */
+    off_t length;                       // not sure
+    struct lock inode_lock;             // not sure
+    struct condition until_not_extending; // not sure
+    struct condition until_no_writers; //no sure
   };
 
 /* Returns the block device sector that contains byte offset POS
@@ -64,11 +64,54 @@ static block_sector_t
 byte_to_sector (const struct inode *inode, off_t pos)
 {
   ASSERT (inode != NULL);
-  if (pos < inode->data.length)
-    return inode->data.start + pos / BLOCK_SECTOR_SIZE;
-  else
-    return -1;
+  block_sector_t rv = -1;
+  struct inode_disk *disk_inode = (struct inode_disk *)malloc(sizeof(struct inode_disk));
+  bufcache_read(inode_get_inumber(inode), disk_inode, 0, BLOCK_SECTOR_SIZE);
+
+  if (pos < disk_inode->length) {
+    off_t index = pos / BLOCK_SECTOR_SIZE;
+
+    /* Scenario 1: Direct blocks are sufficient. */
+    if (index < DIRECT_BLOCK_COUNT) {
+      rv = disk_inode->direct_blocks[index];
+    }
+    /* Scenario 2: Direct blocks and indirect blocks are sufficient. */
+    else if (index < DIRECT_BLOCK_COUNT + INDIRECT_BLOCK_COUNT) {
+      off_t remaining_index = index - DIRECT_BLOCK_COUNT;
+      struct indirect_block *block_indirect;
+      bufcache_read(disk_inode->indirect_block, block_indirect, 0, BLOCK_SECTOR_SIZE);
+      rv = block_indirect->blocks[remaining_index];
+    }
+    /* Scenario 3: Direct blocks, indirect blocks, and doubly indirect blocks are sufficient. */
+    else {
+      off_t remaining_index = index - DIRECT_BLOCK_COUNT - INDIRECT_BLOCK_COUNT;
+      struct indirect_block *first_level_block_indirect;
+      bufcache_read(disk_inode->doubly_indirect_block, first_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
+      struct indirect_block *second_level_block_indirect;
+      bufcache_read(first_level_block_indirect->blocks[remaining_index / INDIRECT_BLOCK_COUNT], second_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
+      rv = second_level_block_indirect->blocks[remaining_index % INDIRECT_BLOCK_COUNT];
+    }
+  }
+
+  free(disk_inode);
+  return rv;
 }
+
+/* The following functions are thin wrappers around free_map_allocate(). */
+static bool inode_allocate_sector (block_sector_t *sector);
+static bool inode_allocate_indirect (block_sector_t *sector, size_t count);
+static bool inode_allocate_doubly_indirect (block_sector_t *sector, size_t count);
+static bool inode_allocate (struct inode_disk *disk_inode, off_t length);
+
+/* The following functions are thin wrappers around free_map_release(). */
+static bool inode_deallocate_sector (block_sector_t *sector, size_t count);
+static bool inode_deallocate_indirect (block_sector_t *sector, size_t count);
+static bool inode_deallocate_doubly_indirect (block_sector_t *sector, size_t count);
+static bool inode_deallocate (struct inode *inode);
+
+
+
+
 
 /* List of open inodes, so that opening a single inode twice
    returns the same `struct inode'. */
