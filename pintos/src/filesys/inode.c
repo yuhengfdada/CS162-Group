@@ -104,9 +104,9 @@ static bool inode_allocate_doubly_indirect (block_sector_t *sector, size_t count
 static bool inode_allocate (struct inode_disk *disk_inode, off_t length);
 
 /* The following functions are thin wrappers around free_map_release(). */
-static bool inode_deallocate_sector (block_sector_t *sector, size_t count);
-static bool inode_deallocate_indirect (block_sector_t *sector, size_t count);
-static bool inode_deallocate_doubly_indirect (block_sector_t *sector, size_t count);
+static bool inode_deallocate_sector (block_sector_t sector);
+static bool inode_deallocate_indirect (block_sector_t sector, size_t count);
+static bool inode_deallocate_doubly_indirect (block_sector_t *ector, size_t count);
 static bool inode_deallocate (struct inode *inode);
 
 /* Allocate a sector for a direct pointer. */
