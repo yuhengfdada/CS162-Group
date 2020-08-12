@@ -7,6 +7,7 @@
 #include "threads/synch.h"
 #include "threads/fixed-point.h"
 #include "filesys/file.h"
+#include "filesys/directory.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -98,6 +99,7 @@ struct wait_status{
 struct file_descriptor {
    int fd;                    /* An int used to identify a file descriptor */
    struct file *curr_file;    /* A pointer to a file struct as defined in file.c */
+   struct dir *curr_dir;      /* A pointer to a directory struct as defined in directory.c. */
    struct list_elem elem;
 };
 
@@ -113,6 +115,9 @@ struct thread
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+
+    /* Current working directory of the thread. */
+    struct dir* cwd;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
