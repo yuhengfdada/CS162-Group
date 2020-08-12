@@ -77,18 +77,18 @@ byte_to_sector (const struct inode *inode, off_t pos)
     /* Scenario 2: Direct blocks and indirect blocks are sufficient. */
     else if (index < DIRECT_BLOCK_COUNT + INDIRECT_BLOCK_COUNT) {
       off_t remaining_index = index - DIRECT_BLOCK_COUNT;
-      struct indirect_block *block_indirect;
-      bufcache_read(disk_inode->indirect_block, block_indirect, 0, BLOCK_SECTOR_SIZE);
-      rv = block_indirect->blocks[remaining_index];
+      struct indirect_block block_indirect;
+      bufcache_read(disk_inode->indirect_block, &block_indirect, 0, BLOCK_SECTOR_SIZE);
+      rv = block_indirect.blocks[remaining_index];
     }
     /* Scenario 3: Direct blocks, indirect blocks, and doubly indirect blocks are sufficient. */
     else {
       off_t remaining_index = index - DIRECT_BLOCK_COUNT - INDIRECT_BLOCK_COUNT;
-      struct indirect_block *first_level_block_indirect;
-      bufcache_read(disk_inode->doubly_indirect_block, first_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
-      struct indirect_block *second_level_block_indirect;
-      bufcache_read(first_level_block_indirect->blocks[remaining_index / INDIRECT_BLOCK_COUNT], second_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
-      rv = second_level_block_indirect->blocks[remaining_index % INDIRECT_BLOCK_COUNT];
+      struct indirect_block first_level_block_indirect;
+      bufcache_read(disk_inode->doubly_indirect_block, &first_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
+      struct indirect_block second_level_block_indirect;
+      bufcache_read(first_level_block_indirect.blocks[remaining_index / INDIRECT_BLOCK_COUNT], &second_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
+      rv = second_level_block_indirect.blocks[remaining_index % INDIRECT_BLOCK_COUNT];
     }
   }
 
@@ -105,7 +105,7 @@ static bool inode_allocate (struct inode_disk *disk_inode, off_t length);
 /* The following functions are thin wrappers around free_map_release(). */
 static void inode_deallocate_sector (block_sector_t sector);
 static void inode_deallocate_indirect (block_sector_t sector, size_t count);
-static void inode_deallocate_doubly_indirect (block_sector_t *sector, size_t count);
+static void inode_deallocate_doubly_indirect (block_sector_t sector, size_t count);
 static void inode_deallocate (struct inode *inode);
 
 /* Allocate a sector for a direct pointer. */
@@ -127,17 +127,17 @@ static bool inode_allocate_indirect (block_sector_t *sector, size_t count) {
     return false;
   }
 
-  struct indirect_block *block_indirect;
-  bufcache_read(*sector, block_indirect, 0, BLOCK_SECTOR_SIZE);
+  struct indirect_block block_indirect;
+  bufcache_read(*sector, &block_indirect, 0, BLOCK_SECTOR_SIZE);
 
   /* Allocate COUNT of data sectors. */
   for (size_t i = 0; i < count; i += 1) {
-    if (!inode_allocate_sector(&block_indirect->blocks[i])) {
+    if (!inode_allocate_sector(&block_indirect.blocks[i])) {
       return false;
     }
   }
 
-  bufcache_write(*sector, block_indirect, 0, BLOCK_SECTOR_SIZE);
+  bufcache_write(*sector, &block_indirect, 0, BLOCK_SECTOR_SIZE);
   return true;
 }
 
@@ -148,19 +148,19 @@ static bool inode_allocate_doubly_indirect (block_sector_t *sector, size_t count
     return false;
   }
 
-  struct indirect_block *first_level_block_indirect;
-  bufcache_read(*sector, first_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
+  struct indirect_block first_level_block_indirect;
+  bufcache_read(*sector, &first_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
 
   size_t num_second_level_blocks = DIV_ROUND_UP(count, INDIRECT_BLOCK_COUNT);
   for (size_t i = 0; i < num_second_level_blocks; i += 1) {
     size_t num_to_allocate = count < INDIRECT_BLOCK_COUNT? count : INDIRECT_BLOCK_COUNT;
-    if (!inode_allocate_indirect(&first_level_block_indirect->blocks[i], num_to_allocate)) {
+    if (!inode_allocate_indirect(&first_level_block_indirect.blocks[i], num_to_allocate)) {
       return false;
     }
     count -= num_to_allocate;
   }
 
-  bufcache_write(*sector, first_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
+  bufcache_write(*sector, &first_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
   return true;
 }
 
@@ -216,25 +216,25 @@ static void inode_deallocate_sector (block_sector_t sector) {
 
 /* Dealllocate sectors for an indrect pointer. */
 static void inode_deallocate_indirect (block_sector_t sector, size_t count) {
-  struct indirect_block *block_indirect;
-  bufcache_read(sector, block_indirect, 0, BLOCK_SECTOR_SIZE);
+  struct indirect_block block_indirect;
+  bufcache_read(sector, &block_indirect, 0, BLOCK_SECTOR_SIZE);
 
-  for (size_t i; i < count; i += 1) {
-    inode_deallocate_sector(block_indirect->blocks[i]);
+  for (size_t i = 0; i < count; i += 1) {
+    inode_deallocate_sector(block_indirect.blocks[i]);
   }
 
   inode_deallocate_sector(sector);
 }
 
 /* Deallocate sectors for a doubly indirect pointer. */
-static void inode_deallocate_doubly_indirect (block_sector_t *sector, size_t count) {
-  struct indirect_block *first_level_block_indirect;
-  bufcache_read(sector, first_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
+static void inode_deallocate_doubly_indirect (block_sector_t sector, size_t count) {
+  struct indirect_block first_level_block_indirect;
+  bufcache_read(sector, &first_level_block_indirect, 0, BLOCK_SECTOR_SIZE);
 
   size_t num_second_level_blocks = DIV_ROUND_UP(count, INDIRECT_BLOCK_COUNT);
   for (size_t i = 0; i < num_second_level_blocks; i += 1) {
     size_t num_to_deallocate = count < INDIRECT_BLOCK_COUNT? count: INDIRECT_BLOCK_COUNT;
-    inode_deallocate_indirect(first_level_block_indirect->blocks[i], num_to_deallocate);
+    inode_deallocate_indirect(first_level_block_indirect.blocks[i], num_to_deallocate);
     count -= num_to_deallocate;
   }
 
@@ -267,7 +267,7 @@ static void inode_deallocate (struct inode *inode) {
 
   /* Allocate indirect blocks. */
   num_to_deallocate = remaining_num_sectors < INDIRECT_BLOCK_COUNT? remaining_num_sectors : INDIRECT_BLOCK_COUNT;
-  inode_deallocate_indirect(&disk_inode->indirect_block, num_to_deallocate);
+  inode_deallocate_indirect(disk_inode->indirect_block, num_to_deallocate);
   remaining_num_sectors -= num_to_deallocate;
   if (remaining_num_sectors == 0) {
     free(disk_inode);
@@ -276,7 +276,7 @@ static void inode_deallocate (struct inode *inode) {
 
   /* Allocate doubly indirect blocks. */
   num_to_deallocate = remaining_num_sectors < INDIRECT_BLOCK_COUNT * INDIRECT_BLOCK_COUNT? remaining_num_sectors : INDIRECT_BLOCK_COUNT * INDIRECT_BLOCK_COUNT;
-  inode_deallocate_doubly_indirect(&disk_inode->doubly_indirect_block, num_to_deallocate);
+  inode_deallocate_doubly_indirect(disk_inode->doubly_indirect_block, num_to_deallocate);
   remaining_num_sectors -= num_to_deallocate;
 
   ASSERT(remaining_num_sectors == 0);
