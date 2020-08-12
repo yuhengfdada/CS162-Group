@@ -50,7 +50,7 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     bool extended;                      /* Whether the file is extended or not. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct lock inode_lock;             // not sure
+    struct lock inode_lock;             /* Synchronizing in-memory state for this inode. */
     struct condition until_not_extending; // 
     struct condition until_no_writers; // no read and write at the same time (might not be necessary)
   };
@@ -266,7 +266,7 @@ static void inode_deallocate (struct inode *inode) {
     return;
   }
 
-  /* Allocate indirect blocks. */
+  /* Deallocate indirect blocks. */
   num_to_deallocate = remaining_num_sectors < INDIRECT_BLOCK_COUNT? remaining_num_sectors : INDIRECT_BLOCK_COUNT;
   inode_deallocate_indirect(disk_inode->indirect_block, num_to_deallocate);
   remaining_num_sectors -= num_to_deallocate;
@@ -275,7 +275,7 @@ static void inode_deallocate (struct inode *inode) {
     return;
   }
 
-  /* Allocate doubly indirect blocks. */
+  /* Deallocate doubly indirect blocks. */
   num_to_deallocate = remaining_num_sectors < INDIRECT_BLOCK_COUNT * INDIRECT_BLOCK_COUNT? remaining_num_sectors : INDIRECT_BLOCK_COUNT * INDIRECT_BLOCK_COUNT;
   inode_deallocate_doubly_indirect(disk_inode->doubly_indirect_block, num_to_deallocate);
   remaining_num_sectors -= num_to_deallocate;
@@ -289,11 +289,15 @@ static void inode_deallocate (struct inode *inode) {
    returns the same `struct inode'. */
 static struct list open_inodes;
 
+/* A lock to synchronize the list above. */
+struct lock open_inodes_lock;
+
 /* Initializes the inode module. */
 void
 inode_init (void)
 {
   list_init (&open_inodes);
+  lock_init(&open_inodes_lock);
 }
 
 /* Initializes an inode with LENGTH bytes of data and
@@ -336,6 +340,7 @@ inode_open (block_sector_t sector)
   struct list_elem *e;
   struct inode *inode;
 
+  lock_acquire(&open_inodes_lock);
   /* Check whether this inode is already open. */
   for (e = list_begin (&open_inodes); e != list_end (&open_inodes);
        e = list_next (e))
@@ -344,14 +349,17 @@ inode_open (block_sector_t sector)
       if (inode->sector == sector)
         {
           inode_reopen (inode);
+          lock_release(&open_inodes_lock);
           return inode;
         }
     }
 
   /* Allocate memory. */
   inode = malloc (sizeof *inode);
-  if (inode == NULL)
+  if (inode == NULL) {
+    lock_release(&open_inodes_lock);
     return NULL;
+  }
 
   /* Initialize. */
   list_push_front (&open_inodes, &inode->elem);
@@ -359,7 +367,10 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+  inode->extended = false;
+  lock_release(&open_inodes_lock);
   lock_init(&inode->inode_lock);
+  cond_init(&inode->until_not_extending);
   return inode;
 }
 
@@ -393,7 +404,9 @@ inode_close (struct inode *inode)
   if (--inode->open_cnt == 0)
     {
       /* Remove from inode list and release lock. */
+      lock_acquire(&open_inodes_lock);
       list_remove (&inode->elem);
+      lock_release(&open_inodes_lock);
 
       /* Deallocate blocks if removed. */
       if (inode->removed)
@@ -421,8 +434,16 @@ inode_remove (struct inode *inode)
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 {
+  lock_acquire(&inode->inode_lock);
+
   uint8_t *buffer = buffer_;
   off_t bytes_read = 0;
+
+  /* Check whether initial offset is out of range. */
+  if (byte_to_sector(inode, offset) == (block_sector_t)-1) {
+    lock_release(&inode->inode_lock);
+    return 0;
+  }
 
   while (size > 0)
     {
@@ -448,6 +469,8 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       bytes_read += chunk_size;
     }
 
+  lock_release(&inode->inode_lock);
+
   return bytes_read;
 }
 
@@ -460,24 +483,38 @@ off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset)
 {
+  lock_acquire(&inode->inode_lock);
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
 
-  if (inode->deny_write_cnt)
+  if (inode->deny_write_cnt) {
+    lock_release(&inode->inode_lock);
     return 0;
+  }
   
+  /* Check whether another process is extending this file. */
+  while (inode->extended == true) {
+    cond_wait(&inode->until_not_extending, &inode->inode_lock);
+  }
+
   /* File extension. */
   if (byte_to_sector(inode, offset + size - 1) == (size_t)-1) {
+    inode->extended = true;
     struct inode_disk *disk_inode = (struct inode_disk *)malloc(sizeof(struct inode_disk));
     bufcache_read(inode_get_inumber(inode), disk_inode, 0, BLOCK_SECTOR_SIZE);
 
     if (!inode_allocate(disk_inode, offset + size)) {
       free(disk_inode);
+      inode->extended = false;
+      cond_broadcast(&inode->until_not_extending, &inode->inode_lock);
+      lock_release(&inode->inode_lock);
       return bytes_written;
     }
 
     disk_inode->length = offset + size;
     bufcache_write(inode_get_inumber(inode), (void *)disk_inode, 0, BLOCK_SECTOR_SIZE);
+    inode->extended = false;
+    cond_broadcast(&inode->until_not_extending, &inode->inode_lock);
     free(disk_inode);
   }
 
@@ -505,6 +542,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       bytes_written += chunk_size;
     }
 
+  lock_release(&inode->inode_lock);
   return bytes_written;
 }
 
