@@ -50,7 +50,7 @@ struct inode
     bool removed;                       /* True if deleted, false otherwise. */
     bool extended;                      /* Whether the file is extended or not. */
     int deny_write_cnt;                 /* 0: writes ok, >0: deny writes. */
-    struct lock inode_lock;             // not sure
+    struct lock inode_lock;             /* Synchronizing in-memory state for this inode. */
     struct condition until_not_extending; // 
     struct condition until_no_writers; // no read and write at the same time (might not be necessary)
   };
@@ -432,6 +432,8 @@ inode_remove (struct inode *inode)
 off_t
 inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
 {
+  lock_acquire(&inode->inode_lock);
+
   uint8_t *buffer = buffer_;
   off_t bytes_read = 0;
 
@@ -459,6 +461,8 @@ inode_read_at (struct inode *inode, void *buffer_, off_t size, off_t offset)
       bytes_read += chunk_size;
     }
 
+  lock_release(&inode->inode_lock);
+
   return bytes_read;
 }
 
@@ -471,11 +475,14 @@ off_t
 inode_write_at (struct inode *inode, const void *buffer_, off_t size,
                 off_t offset)
 {
+  lock_acquire(&inode->inode_lock);
   const uint8_t *buffer = buffer_;
   off_t bytes_written = 0;
 
-  if (inode->deny_write_cnt)
+  if (inode->deny_write_cnt) {
+    lock_release(&inode->inode_lock);
     return 0;
+  }
   
   /* File extension. */
   if (byte_to_sector(inode, offset + size - 1) == (size_t)-1) {
@@ -484,6 +491,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
 
     if (!inode_allocate(disk_inode, offset + size)) {
       free(disk_inode);
+      lock_release(&inode->inode_lock);
       return bytes_written;
     }
 
@@ -516,6 +524,7 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
       bytes_written += chunk_size;
     }
 
+  lock_release(&inode->inode_lock);
   return bytes_written;
 }
 
