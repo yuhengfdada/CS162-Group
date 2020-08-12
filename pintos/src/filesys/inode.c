@@ -111,6 +111,7 @@ static void inode_deallocate (struct inode *inode);
 /* Allocate a sector for a direct pointer. */
 static bool inode_allocate_sector (block_sector_t *sector) {
   char buffer[BLOCK_SECTOR_SIZE];
+  memset(buffer, 0, BLOCK_SECTOR_SIZE);
   if (!*sector) {
     if (!free_map_allocate(1, sector)) {
       return false;
