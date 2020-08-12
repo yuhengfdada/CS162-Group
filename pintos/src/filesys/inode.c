@@ -367,8 +367,10 @@ inode_open (block_sector_t sector)
   inode->open_cnt = 1;
   inode->deny_write_cnt = 0;
   inode->removed = false;
+  inode->extended = false;
   lock_release(&open_inodes_lock);
   lock_init(&inode->inode_lock);
+  cond_init(&inode->until_not_extending);
   return inode;
 }
 
@@ -490,19 +492,29 @@ inode_write_at (struct inode *inode, const void *buffer_, off_t size,
     return 0;
   }
   
+  /* Check whether another process is extending this file. */
+  while (inode->extended == true) {
+    cond_wait(&inode->until_not_extending, &inode->inode_lock);
+  }
+
   /* File extension. */
   if (byte_to_sector(inode, offset + size - 1) == (size_t)-1) {
+    inode->extended = true;
     struct inode_disk *disk_inode = (struct inode_disk *)malloc(sizeof(struct inode_disk));
     bufcache_read(inode_get_inumber(inode), disk_inode, 0, BLOCK_SECTOR_SIZE);
 
     if (!inode_allocate(disk_inode, offset + size)) {
       free(disk_inode);
+      inode->extended = false;
+      cond_broadcast(&inode->until_not_extending, &inode->inode_lock);
       lock_release(&inode->inode_lock);
       return bytes_written;
     }
 
     disk_inode->length = offset + size;
     bufcache_write(inode_get_inumber(inode), (void *)disk_inode, 0, BLOCK_SECTOR_SIZE);
+    inode->extended = false;
+    cond_broadcast(&inode->until_not_extending, &inode->inode_lock);
     free(disk_inode);
   }
 
