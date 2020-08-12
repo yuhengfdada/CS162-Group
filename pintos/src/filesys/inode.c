@@ -23,7 +23,7 @@ struct inode_disk
     block_sector_t direct_blocks[DIRECT_BLOCK_COUNT];     /* Pointer to direct blocks. */
     block_sector_t indirect_block;                        /* Pointer to an indirect block. */
     block_sector_t doubly_indirect_block;                 /* Pointer to a doubly indirect block. */
-    bool isdir;                                           /* Whether it is a directory or file. */
+    uint32_t isdir;                                       /* Whether it is a directory or file. */
     off_t length;                                         /* File size in bytes. */
     unsigned magic;                                       /* Magic number. */
   };
