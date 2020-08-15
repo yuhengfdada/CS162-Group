@@ -247,3 +247,76 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
     }
   return false;
 }
+
+/* Extract a file name part from *SRCP into PART, and updates *SRCP so that
+   the next call will return the next file name part. Returns 1 if successful, 
+   0 at end of string, -1 for a too-long file name part. */
+int get_next_part(char part[NAME_MAX + 1], const char **srcp) {
+  const char *src = *srcp;
+  char *dst = part;
+
+  /* Skip leading slashes. If it's all slashes, we're done. */
+  while (*src == '/') {
+    src++;
+  }
+  if (*src == '\0') {
+    return 0;
+  }
+
+  /* Copy up to NAME_MAX characters from SRC to DST. Add null terminator. */
+  while (*src != '/' && *src != '\0') {
+    if (dst < part + NAME_MAX) {
+      *dst++ = *src;
+    } else {
+      return -1;
+    }
+    src++;
+  }
+  *dst = '\0';
+
+  /* Advance source pointer. */
+  *srcp = src;
+  return 1;
+}
+
+/* Given an absolute PATH, extract the DIRECTORY and FILENAME into the provided pointers. */
+bool split_directory_and_filename(const char *path, char *directory, char *filename) {
+  if (strlen(path) == 0) {
+    return false;
+  }
+
+  if (path[0] == '/') {
+    *directory++ = '/';
+  }
+
+  int status;
+  char token[NAME_MAX + 1], prev_token[NAME_MAX + 1];
+  token[0] = '\0';
+  prev_token[0] = '\0';
+
+  while ((status  = get_next_part(token, &path)) != 0) {
+    if (status == -1) {
+      return false;
+    }
+
+    int prev_length = strlen(prev_token);
+    if (prev_length > 0) {
+      memcpy(directory, prev_token, sizeof(char) * prev_length);
+      directory[prev_length] = '/';
+      directory += prev_length + 1;
+    }
+    memcpy(prev_token, token, sizeof(char) * strlen(token));
+    prev_token[strlen(token)] = '\0';
+  }
+
+  *directory = '\0';
+  memcpy(filename, token, sizeof(char) * (strlen(token) + 1));
+  return true;
+}
+
+struct dir *dir_open_directory(char *directory) {
+
+
+
+
+}
