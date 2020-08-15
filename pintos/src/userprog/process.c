@@ -92,6 +92,8 @@ start_process (void *load_info_)
     thread_exit ();
   }
 
+  thread_current()->cwd = dir_open_root();
+
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
      threads/intr-stubs.S).  Because intr_exit takes all of its
@@ -192,6 +194,12 @@ process_exit (void)
       file_close(curr_file);
       free(temp2);
   }
+
+  /* Close the directory. */
+  if (current->cwd != NULL) {
+    dir_close(current->cwd);
+  }
+
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   uint32_t *pd;

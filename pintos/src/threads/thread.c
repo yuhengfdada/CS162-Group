@@ -12,6 +12,8 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "filesys/directory.h"
+#include "filesys/inode.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -493,8 +495,6 @@ init_thread (struct thread *t, const char *name, int priority)
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
-  
-
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

@@ -55,15 +55,6 @@ struct inode
     struct condition until_no_writers; // no read and write at the same time (might not be necessary)
   };
 
-struct inode_disk *
-get_inode_disk (const struct inode *inode)
-{
-  ASSERT (inode != NULL);
-  struct inode_disk *disk_inode = malloc (sizeof *disk_inode);
-  bufcache_read (inode_get_inumber (inode), (void *)disk_inode, 0, BLOCK_SECTOR_SIZE);
-  return disk_inode;
-}
-
 /* Returns the block device sector that contains byte offset POS
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
@@ -301,6 +292,9 @@ static struct list open_inodes;
 /* A lock to synchronize the list above. */
 struct lock open_inodes_lock;
 
+/* Tells whether a memory inode is for file or directory. */
+uint32_t inode_is_dir(struct inode *inode);
+
 /* Initializes the inode module. */
 void
 inode_init (void)
@@ -315,7 +309,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length, bool isdir)
+inode_create (block_sector_t sector, off_t length, uint32_t isdir)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -587,19 +581,13 @@ inode_length (const struct inode *inode)
   return length;
 }
 
-bool
-inode_isdir (const struct inode *inode)
-{
-  ASSERT (inode != NULL);
-  struct inode_disk *disk_inode = get_inode_disk (inode);
-  bool isdir = disk_inode->isdir;
-  free (disk_inode);
-  return isdir;
-}
-
-bool
-inode_is_removed (const struct inode *inode)
-{
-  ASSERT (inode != NULL);
-  return inode->removed;
+/* Given a memory inode, tells whether the corresponding disk inode is
+   for a file (0) or for a directory (1). */
+uint32_t inode_is_dir(struct inode *inode) {
+  ASSERT(inode != NULL);
+  struct inode_disk *disk_inode = (struct inode_disk *)malloc(sizeof(struct inode_disk));
+  bufcache_read(inode_get_inumber(inode), disk_inode, 0, BLOCK_SECTOR_SIZE);
+  uint32_t rv = disk_inode->isdir;
+  free(disk_inode);
+  return rv;
 }

@@ -2,6 +2,7 @@
 #define USERPROG_PROCESS_H
 
 #include "threads/thread.h"
+#include "filesys/directory.h"
 
 tid_t process_execute (const char *file_name);
 int process_wait (tid_t);
@@ -13,6 +14,7 @@ struct load_info
     char* file_name;
     struct semaphore sema;
     bool success;
+    struct dir *parent_working_dir;
 };
 
 #endif /* userprog/process.h */
