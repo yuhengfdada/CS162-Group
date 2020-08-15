@@ -14,7 +14,7 @@ struct dir
     struct inode *inode;                /* Backing store. */
     off_t pos;                          /* Current position. */
     struct dir *parent_dir;             // when we run into .. in path, we know where to look next
-    struct lock lock_dir;               // add lock to dir struct for every subdirectory
+    // struct lock lock_dir;               // add lock to dir struct for every subdirectory
     //struct *file_descriptor;            // give directory a file descriptor too
   };
 
@@ -27,18 +27,18 @@ struct dir_entry
   };
 
 
-void
-dir_acquire_lock (struct dir *dir)
-{
-  lock_acquire (&(dir->lock_dir));
-}
+// void
+// dir_acquire_lock (struct dir *dir)
+// {
+//   lock_acquire (&(dir->lock_dir));
+// }
 
-/* Release the lock of DIR. */
-void
-dir_release_lock (struct dir *dir)
-{
-  lock_release (&(dir->lock_dir));
-}
+// /* Release the lock of DIR. */
+// void
+// dir_release_lock (struct dir *dir)
+// {
+//   lock_release (&(dir->lock_dir));
+// }
 
 
 /* Creates a directory with space for ENTRY_CNT entries in the
@@ -55,12 +55,12 @@ dir_create (block_sector_t sector, size_t entry_cnt)
       e.in_use = false;
 
       /* Acquire dir lock */
-      dir_acquire_lock (curr_dir);
+      // dir_acquire_lock (curr_dir);
       if (inode_write_at (dir_get_inode (curr_dir), &e, sizeof (e), 0) != sizeof (e))
         success = false;
 
       /* Release dir lock */
-      dir_release_lock (curr_dir);
+      // dir_release_lock (curr_dir);
       dir_close (curr_dir);
     }
   return success;
@@ -76,7 +76,7 @@ dir_open (struct inode *inode)
     {
       dir->inode = inode;
       dir->pos = 0;
-      lock_init(&dir->lock_dir);
+      // lock_init(&dir->lock_dir);
       return dir;
     }
   else
@@ -210,7 +210,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
         goto done;
 
       /* Acquire curr_dir lock. */
-      dir_acquire_lock (curr_dir);
+      // dir_acquire_lock (curr_dir);
 
       e_.in_use = false;
       e_.inode_sector = inode_get_inumber (dir_get_inode (dir));
@@ -218,7 +218,7 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
         parent_success = false;
 
       /* Release curr_dir lock. */
-      dir_release_lock (curr_dir);
+      // dir_release_lock (curr_dir);
       dir_close (curr_dir);
 
       if (!parent_success)
@@ -263,7 +263,7 @@ dir_remove (struct dir *dir, const char *name)
   ASSERT (name != NULL);
 
   /* Acquire dir lock. */
-  dir_acquire_lock (dir);
+  // dir_acquire_lock (dir);
 
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
@@ -305,7 +305,7 @@ dir_remove (struct dir *dir, const char *name)
 
  done:
   /* Release dir lock. */
-  dir_release_lock (dir);
+  // dir_release_lock (dir);
   inode_close (inode);
   return success;
 }
@@ -316,7 +316,7 @@ bool
 dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
   struct dir_entry e;
-dir_acquire_lock (dir);
+// dir_acquire_lock (dir);
   while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e)
     {
       dir->pos += sizeof e;
@@ -327,7 +327,7 @@ dir_acquire_lock (dir);
         }
     }
   return false;
-  dir_release_lock (dir);
+  // dir_release_lock (dir);
 }
 
 
@@ -358,6 +358,7 @@ static int get_next_part (char part[NAME_MAX + 1], const char **srcp)
   *srcp = src;
   return 1;
 }
+
 /* Given a full PATH, extract the DIRECTORY and FILENAME into the provided pointers. */
 bool
 split_directory_and_filename (const char *path, char *directory, char *filename)
@@ -393,8 +394,6 @@ split_directory_and_filename (const char *path, char *directory, char *filename)
   memcpy (filename, token, sizeof (char) * (strlen (token) + 1));
   return true;
 }
-
-
 
 struct dir *
 dir_open_directory (const char *directory)
