@@ -649,3 +649,17 @@ get_file (struct thread *t, int fd){
     }
 
 }
+
+void
+assign_fd_dir (struct thread *t, struct dir *dir, int fd)
+{
+      struct list_elem *e;
+  struct list * foo_list = &t->file_descriptors;
+  for (e = list_begin (foo_list); e != list_end (foo_list);
+        e = list_next (e))
+    {
+      struct file_descriptor *f = list_entry (e, struct file_descriptor, elem);
+      if(fd == f->fd) f->curr_dir = dir;
+    }
+
+}

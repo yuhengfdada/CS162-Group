@@ -57,6 +57,7 @@ process_execute (const char *file_name)// file_name-> "[exe_name] [argv...]\n"
   li.file_name = fn_copy;
   sema_init(&(li.sema), 0);
   li.success = false;
+  li.parent_working_dir = thread_current ()->cwd;
   tid = thread_create (executable, PRI_DEFAULT, start_process, (void*)(&li));
   palloc_free_page(fn_copy2);
 

@@ -52,6 +52,7 @@ static void syscall_chdir (struct intr_frame *f);
 static void syscall_mkdir (struct intr_frame *f);
 static void syscall_readdir (struct intr_frame *f);
 static void syscall_isdir (struct intr_frame *f); 
+static void syscall_inumber (struct intr_frame *f); 
 
 void
 syscall_init (void)
@@ -80,6 +81,7 @@ syscall_init (void)
   syscalls[SYS_MKDIR]    = syscall_mkdir;
   syscalls[SYS_READDIR]  = syscall_readdir;
   syscalls[SYS_ISDIR]    = syscall_isdir;
+  syscalls[SYS_INUMBER]    = syscall_inumber;
 }
 
 static void
@@ -169,14 +171,18 @@ static void syscall_open (struct intr_frame *f)
   char *name = (char *)args[1];
   if (!validate(args,1) || !validate_string((void *)args[1])) {
     exception_exit(-1);
-  } else if (name[0] == '\0') {
-    f->eax = -1;
-  } else {
+  } //else if (name[0] == '\0') {
+    //f->eax = -1;
+   else {
     struct file *curr_file = filesys_open(name);
     if (!curr_file) {
       f->eax = -1;
     } else {
       int fd = add_file_descriptor(curr_file);
+      struct inode *inode = file_get_inode (curr_file);
+      if (inode != NULL && inode_isdir (inode))
+      assign_fd_dir (thread_current (), dir_open (inode_reopen (inode)), fd);
+    
       f->eax = fd;
     }
   }
@@ -222,6 +228,11 @@ static void syscall_read (struct intr_frame *f)
         exception_exit(-1);
       } else {
         struct file *curr_file = found->curr_file;
+        // adding the following two lines make us fail abt 40 more tests
+        /*
+        struct inode *inode = file_get_inode (curr_file);
+        if (!inode_isdir (inode))
+        */
         f->eax = file_read(curr_file, buffer, size);
       }
     }
@@ -248,6 +259,11 @@ static void syscall_write (struct intr_frame *f)
         exception_exit(-1);
       } else {
         struct file *curr_file = found->curr_file;
+        // adding the following two lines make us fail abt 40 more tests
+        /*
+        struct inode *inode = file_get_inode (curr_file);
+        if (!inode_isdir (inode))
+        */
         f->eax = file_write(curr_file, buffer, size);
       }
     }
@@ -380,6 +396,23 @@ syscall_isdir (struct intr_frame *f)
     f->eax = -1;
 }
 
+static void
+syscall_inumber (struct intr_frame *f)
+{
+  uint32_t *args = (uint32_t *) f->esp;
+  if (!validate (args, 1))
+    exception_exit(-1);
+
+  int fd = args[1];
+  struct file *file = get_file (thread_current (), fd);
+  if (file)
+    {
+      struct inode *inode = file_get_inode (file);
+      f->eax = (int) inode_get_inumber (inode);
+    }
+  else
+    f->eax = -1;
+}
 
 
 

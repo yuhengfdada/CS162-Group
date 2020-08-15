@@ -109,8 +109,15 @@ filesys_open (const char *name)
 bool
 filesys_remove (const char *name)
 {
-  struct dir *dir = dir_open_root ();
-  bool success = dir != NULL && dir_remove (dir, name);
+  char directory[strlen (name) + 1];
+  char filename[NAME_MAX + 1];
+  directory[0] = '\0';
+  filename[0] = '\0';
+
+  bool split_success = split_directory_and_filename (name, directory, filename);
+  struct dir *dir = dir_open_directory (directory);
+
+  bool success = split_success && (dir != NULL) && dir_remove (dir, filename);
   dir_close (dir);
 
   return success;

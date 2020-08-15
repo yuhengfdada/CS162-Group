@@ -76,6 +76,7 @@ dir_open (struct inode *inode)
     {
       dir->inode = inode;
       dir->pos = 0;
+      lock_init(&dir->lock_dir);
       return dir;
     }
   else
