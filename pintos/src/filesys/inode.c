@@ -292,6 +292,9 @@ static struct list open_inodes;
 /* A lock to synchronize the list above. */
 struct lock open_inodes_lock;
 
+/* Tells whether a memory inode is for file or directory. */
+uint32_t inode_is_dir(struct inode *inode);
+
 /* Initializes the inode module. */
 void
 inode_init (void)
@@ -306,7 +309,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length)
+inode_create (block_sector_t sector, off_t length, uint32_t isdir)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -320,6 +323,7 @@ inode_create (block_sector_t sector, off_t length)
   disk_inode = calloc (1, sizeof *disk_inode);
   if (disk_inode != NULL)
     {
+      disk_inode->isdir = isdir;
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
       if (inode_allocate(disk_inode, length)) {
@@ -575,4 +579,15 @@ inode_length (const struct inode *inode)
   off_t length = disk_inode->length;
   free(disk_inode);
   return length;
+}
+
+/* Given a memory inode, tells whether the corresponding disk inode is
+   for a file (0) or for a directory (1). */
+uint32_t inode_is_dir(struct inode *inode) {
+  ASSERT(inode != NULL);
+  struct inode_disk *disk_inode = (struct inode_disk *)malloc(sizeof(struct inode_disk));
+  bufcache_read(inode_get_inumber(inode), disk_inode, 0, BLOCK_SECTOR_SIZE);
+  uint32_t rv = disk_inode->isdir;
+  free(disk_inode);
+  return rv;
 }

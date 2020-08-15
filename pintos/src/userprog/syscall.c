@@ -141,7 +141,7 @@ static void syscall_create (struct intr_frame *f)
   } else {
     char *name = (char *)args[1];
     off_t initial_size = args[2];
-    f->eax = filesys_create(name, initial_size);
+    f->eax = filesys_create(name, initial_size, 0);
   }
 }
 
