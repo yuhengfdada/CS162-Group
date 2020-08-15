@@ -5,12 +5,14 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 
 /* A directory. */
 struct dir
   {
     struct inode *inode;                /* Backing store. */
     off_t pos;                          /* Current position. */
+    struct lock dir_lock;               /* Lock. */
   };
 
 /* A single directory entry. */
@@ -26,6 +28,7 @@ struct dir_entry
 bool
 dir_create (block_sector_t sector, size_t entry_cnt)
 {
+  
   return inode_create (sector, entry_cnt * sizeof (struct dir_entry), 1);
 }
 
