@@ -13,6 +13,7 @@ struct load_info
     char* file_name;
     struct semaphore sema;
     bool success;
+    struct dir *parent_working_dir;
 };
 
 #endif /* userprog/process.h */
