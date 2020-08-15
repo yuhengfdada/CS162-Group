@@ -27,9 +27,11 @@ bool dir_add (struct dir *, const char *name, block_sector_t, bool);
 bool dir_remove (struct dir *, const char *name);
 bool dir_readdir (struct dir *, char name[NAME_MAX + 1]);
 
-/* Helper functions for task 3. */
-int get_next_part(char part[NAME_MAX + 1], const char **srcp);
-bool split_directory_and_filename(const char *path, char *directory, char *filename);
-struct dir *dir_open_directory(char *directory);
+/* Proj 3 Task 3 */
+bool is_valid (char *path); // tells whether the given absolute path is valid or not
+char *absolutize (char *relative_path); // turn a relative path into an absolute path
+bool split_directory_and_filename (const char *path, char *directory, char *filename);
+struct dir *
+dir_open_directory (const char *directory);
 
 #endif /* filesys/directory.h */

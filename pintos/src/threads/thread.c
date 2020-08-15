@@ -12,8 +12,6 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
-#include "filesys/directory.h"
-#include "filesys/inode.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -495,6 +493,8 @@ init_thread (struct thread *t, const char *name, int priority)
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);
   intr_set_level (old_level);
+  
+
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -623,40 +623,43 @@ int add_file_descriptor (struct file *curr_file)
   return curr_fd->fd;
 }
 
-/* Find a struct dir with a given file descriptor for a given thread. */
-struct dir *get_fd_dir(struct thread *t, int fd) {
+struct dir *
+get_fd_dir (struct thread *t, int fd)
+{
   struct list_elem *e;
-  struct list *fd_list = &t->file_descriptors;
-  for (e = list_begin(fd_list); e != list_end(fd_list); e = list_next(e)) {
-    struct file_descriptor *f = list_entry(e, struct file_descriptor, elem);
-    if (fd == f->fd) {
-      return f->curr_dir;
+  struct list * foo_list = &t->file_descriptors;
+  for (e = list_begin (foo_list); e != list_end (foo_list);
+        e = list_next (e))
+    {
+      struct file_descriptor *f = list_entry (e, struct file_descriptor, elem);
+      if(fd == f->fd) return f->curr_dir;
     }
-  }
-  return NULL;
+
 }
 
-/* Find a struct file with a given file descriptor for a given thread. */
-struct file *get_file(struct thread *t, int fd) {
-  struct list_elem *e;
-  struct list *fd_list = &t->file_descriptors;
-  for (e = list_begin(fd_list); e != list_end(fd_list); e = list_next(e)) {
-    struct file_descriptor *f = list_entry(e, struct file_descriptor, elem);
-    if (fd == f->fd) {
-      return f->curr_file;
+struct file *
+get_file (struct thread *t, int fd){
+    struct list_elem *e;
+  struct list * foo_list = &t->file_descriptors;
+  for (e = list_begin (foo_list); e != list_end (foo_list);
+        e = list_next (e))
+    {
+      struct file_descriptor *f = list_entry (e, struct file_descriptor, elem);
+      if(fd == f->fd) return f->curr_file;
     }
-  }
-  return NULL;
+
 }
 
-/* Assign a new directory to a file descriptor. */
-void assign_fd_dir(struct thread *t, struct dir *dir, int fd) {
-  struct list_elem *e;
-  struct list *fd_list = &t->file_descriptors;
-  for (e = list_begin(fd_list); e != list_end(fd_list); e = list_next(e)) {
-    struct file_descriptor *f = list_entry(e, struct file_descriptor, elem);
-    if (fd == f->fd) {
-      f->curr_dir = dir;
+void
+assign_fd_dir (struct thread *t, struct dir *dir, int fd)
+{
+      struct list_elem *e;
+  struct list * foo_list = &t->file_descriptors;
+  for (e = list_begin (foo_list); e != list_end (foo_list);
+        e = list_next (e))
+    {
+      struct file_descriptor *f = list_entry (e, struct file_descriptor, elem);
+      if(fd == f->fd) f->curr_dir = dir;
     }
-  }
+
 }
