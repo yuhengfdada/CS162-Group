@@ -57,7 +57,6 @@ process_execute (const char *file_name)// file_name-> "[exe_name] [argv...]\n"
   li.file_name = fn_copy;
   sema_init(&(li.sema), 0);
   li.success = false;
-  li.parent_working_dir = thread_current ()->cwd;
   tid = thread_create (executable, PRI_DEFAULT, start_process, (void*)(&li));
   palloc_free_page(fn_copy2);
 
@@ -92,11 +91,6 @@ start_process (void *load_info_)
     sema_up(&(load_info->sema));//notify parent: child load success
     thread_exit ();
   }
-
-  if (load_info->parent_working_dir != NULL)
-    thread_current ()->cwd = dir_reopen (load_info->parent_working_dir);
-  else
-    thread_current ()->cwd = dir_open_root ();
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -198,10 +192,6 @@ process_exit (void)
       file_close(curr_file);
       free(temp2);
   }
-
-  if (current->cwd != NULL)
-    dir_close (current->cwd);
-
   /* Destroy the current process's page directory and switch back
      to the kernel-only page directory. */
   uint32_t *pd;

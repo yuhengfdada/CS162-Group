@@ -55,15 +55,6 @@ struct inode
     struct condition until_no_writers; // no read and write at the same time (might not be necessary)
   };
 
-struct inode_disk *
-get_inode_disk (const struct inode *inode)
-{
-  ASSERT (inode != NULL);
-  struct inode_disk *disk_inode = malloc (sizeof *disk_inode);
-  bufcache_read (inode_get_inumber (inode), (void *)disk_inode, 0, BLOCK_SECTOR_SIZE);
-  return disk_inode;
-}
-
 /* Returns the block device sector that contains byte offset POS
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
@@ -315,7 +306,7 @@ inode_init (void)
    Returns true if successful.
    Returns false if memory or disk allocation fails. */
 bool
-inode_create (block_sector_t sector, off_t length, bool isdir)
+inode_create (block_sector_t sector, off_t length)
 {
   struct inode_disk *disk_inode = NULL;
   bool success = false;
@@ -329,7 +320,6 @@ inode_create (block_sector_t sector, off_t length, bool isdir)
   disk_inode = calloc (1, sizeof *disk_inode);
   if (disk_inode != NULL)
     {
-      disk_inode->isdir = isdir;
       disk_inode->length = length;
       disk_inode->magic = INODE_MAGIC;
       if (inode_allocate(disk_inode, length)) {
@@ -585,21 +575,4 @@ inode_length (const struct inode *inode)
   off_t length = disk_inode->length;
   free(disk_inode);
   return length;
-}
-
-bool
-inode_isdir (const struct inode *inode)
-{
-  ASSERT (inode != NULL);
-  struct inode_disk *disk_inode = get_inode_disk (inode);
-  bool isdir = disk_inode->isdir;
-  free (disk_inode);
-  return isdir;
-}
-
-bool
-inode_is_removed (const struct inode *inode)
-{
-  ASSERT (inode != NULL);
-  return inode->removed;
 }

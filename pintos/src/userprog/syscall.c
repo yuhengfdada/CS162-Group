@@ -15,7 +15,6 @@
 #include "lib/kernel/list.h"
 #include "threads/malloc.h"
 #include "stdlib.h"
-#include "filesys/inode.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -47,12 +46,6 @@ static void syscall_seek (struct intr_frame *f);
 static void syscall_tell (struct intr_frame *f);
 static void syscall_close (struct intr_frame *f);
 
-/* Proj 3, task 3 */
-static void syscall_chdir (struct intr_frame *f);
-static void syscall_mkdir (struct intr_frame *f);
-static void syscall_readdir (struct intr_frame *f);
-static void syscall_isdir (struct intr_frame *f); 
-static void syscall_inumber (struct intr_frame *f); 
 
 void
 syscall_init (void)
@@ -76,12 +69,6 @@ syscall_init (void)
   syscalls[SYS_SEEK]     = syscall_seek;
   syscalls[SYS_TELL]     = syscall_tell;
   syscalls[SYS_CLOSE]    = syscall_close;
-
-  syscalls[SYS_CHDIR]    = syscall_chdir;
-  syscalls[SYS_MKDIR]    = syscall_mkdir;
-  syscalls[SYS_READDIR]  = syscall_readdir;
-  syscalls[SYS_ISDIR]    = syscall_isdir;
-  syscalls[SYS_INUMBER]    = syscall_inumber;
 }
 
 static void
@@ -154,7 +141,7 @@ static void syscall_create (struct intr_frame *f)
   } else {
     char *name = (char *)args[1];
     off_t initial_size = args[2];
-    f->eax = filesys_create(name, initial_size,false);
+    f->eax = filesys_create(name, initial_size);
   }
 }
 
@@ -171,18 +158,14 @@ static void syscall_open (struct intr_frame *f)
   char *name = (char *)args[1];
   if (!validate(args,1) || !validate_string((void *)args[1])) {
     exception_exit(-1);
-  } //else if (name[0] == '\0') {
-    //f->eax = -1;
-   else {
+  } else if (name[0] == '\0') {
+    f->eax = -1;
+  } else {
     struct file *curr_file = filesys_open(name);
     if (!curr_file) {
       f->eax = -1;
     } else {
       int fd = add_file_descriptor(curr_file);
-      struct inode *inode = file_get_inode (curr_file);
-      if (inode != NULL && inode_isdir (inode))
-      assign_fd_dir (thread_current (), dir_open (inode_reopen (inode)), fd);
-    
       f->eax = fd;
     }
   }
@@ -228,11 +211,6 @@ static void syscall_read (struct intr_frame *f)
         exception_exit(-1);
       } else {
         struct file *curr_file = found->curr_file;
-        // adding the following two lines make us fail abt 40 more tests
-        /*
-        struct inode *inode = file_get_inode (curr_file);
-        if (!inode_isdir (inode))
-        */
         f->eax = file_read(curr_file, buffer, size);
       }
     }
@@ -259,11 +237,6 @@ static void syscall_write (struct intr_frame *f)
         exception_exit(-1);
       } else {
         struct file *curr_file = found->curr_file;
-        // adding the following two lines make us fail abt 40 more tests
-        /*
-        struct inode *inode = file_get_inode (curr_file);
-        if (!inode_isdir (inode))
-        */
         f->eax = file_write(curr_file, buffer, size);
       }
     }
@@ -319,103 +292,6 @@ int exception_exit (int exit_code)
   printf ("%s: exit(%d)\n", (char *)&thread_current()->name, exit_code);
   thread_exit();
 }
-
-
-static void syscall_chdir (struct intr_frame *f)
-{
-  uint32_t *args = (uint32_t *) f->esp;
-  char *name = (char *)args[1];
-  if (!validate(args,1) || !validate_string((void *)args[1])) {
-    exception_exit(-1);
-  } 
-
-  struct dir *dir = dir_open_directory (name);
-  if (dir != NULL)
-    {
-      dir_close (thread_current ()->cwd);
-      thread_current ()->cwd = dir;
-      f->eax = true;
-    }
-  else
-    f->eax = false;
-
-
-}
-
-static void
-syscall_mkdir (struct intr_frame *f)
-{
-  uint32_t *args = (uint32_t *) f->esp;
-  if (!validate(args,1) || !validate_string((void *)args[1]))
-    exception_exit(-1);
-
-  char *name = (char *) args[1];
-  f->eax = filesys_create (name, 0, true);
-}
-
-static void
-syscall_readdir (struct intr_frame *f)
-{
-  uint32_t *args = (uint32_t *) f->esp;
-  if (!validate(args,2) || !validate_string((void *)args[2]))
-    exception_exit(-1);
-
-  int fd = args[1];
-  char *name = (char *) args[2];
-  struct file *file = get_file (thread_current (), fd);
-  if (file)
-    {
-      struct inode *inode = file_get_inode (file);
-      if (inode == NULL || !inode_isdir (inode))
-        f->eax = false;
-      else
-        {
-          struct dir *dir = get_fd_dir (thread_current (), fd);
-          f->eax = dir_readdir (dir, name);
-        }
-    }
-  else
-    f->eax = -1;
-}
-
-static void
-syscall_isdir (struct intr_frame *f)
-{
-  uint32_t *args = (uint32_t *) f->esp;
-  if (!validate (args, 1))
-    exception_exit(-1);
-
-  int fd = args[1];
-  struct file *file = get_file (thread_current (), fd);
-  if (file)
-    {
-      struct inode *inode = file_get_inode (file);
-      f->eax = inode_isdir (inode);
-    }
-  else
-    f->eax = -1;
-}
-
-static void
-syscall_inumber (struct intr_frame *f)
-{
-  uint32_t *args = (uint32_t *) f->esp;
-  if (!validate (args, 1))
-    exception_exit(-1);
-
-  int fd = args[1];
-  struct file *file = get_file (thread_current (), fd);
-  if (file)
-    {
-      struct inode *inode = file_get_inode (file);
-      f->eax = (int) inode_get_inumber (inode);
-    }
-  else
-    f->eax = -1;
-}
-
-
-
 
 /* Check whether the pointer address is valid for not. */
 bool validate (uint32_t *args, int num)
