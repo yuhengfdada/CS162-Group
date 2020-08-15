@@ -173,4 +173,7 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 int add_file_descriptor(struct file *);
+struct dir *get_fd_dir(struct thread *, int);
+struct file *get_file(struct thread *, int);
+void assign_fd_dir(struct thread *, struct dir *, int);
 #endif /* threads/thread.h */

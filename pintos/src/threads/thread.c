@@ -622,3 +622,41 @@ int add_file_descriptor (struct file *curr_file)
   t->fd_count += 1;
   return curr_fd->fd;
 }
+
+/* Find a struct dir with a given file descriptor for a given thread. */
+struct dir *get_fd_dir(struct thread *t, int fd) {
+  struct list_elem *e;
+  struct list *fd_list = &t->file_descriptors;
+  for (e = list_begin(fd_list); e != list_end(fd_list); e = list_next(e)) {
+    struct file_descriptor *f = list_entry(e, struct file_descriptor, elem);
+    if (fd == f->fd) {
+      return f->curr_dir;
+    }
+  }
+  return NULL;
+}
+
+/* Find a struct file with a given file descriptor for a given thread. */
+struct file *get_file(struct thread *t, int fd) {
+  struct list_elem *e;
+  struct list *fd_list = &t->file_descriptors;
+  for (e = list_begin(fd_list); e != list_end(fd_list); e = list_next(e)) {
+    struct file_descriptor *f = list_entry(e, struct file_descriptor, elem);
+    if (fd == f->fd) {
+      return f->curr_file;
+    }
+  }
+  return NULL;
+}
+
+/* Assign a new directory to a file descriptor. */
+void assign_fd_dir(struct thread *t, struct dir *dir, int fd) {
+  struct list_elem *e;
+  struct list *fd_list = &t->file_descriptors;
+  for (e = list_begin(fd_list); e != list_end(fd_list); e = list_next(e)) {
+    struct file_descriptor *f = list_entry(e, struct file_descriptor, elem);
+    if (fd == f->fd) {
+      f->curr_dir = dir;
+    }
+  }
+}
