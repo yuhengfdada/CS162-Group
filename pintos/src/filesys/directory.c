@@ -24,6 +24,9 @@ struct dir_entry
     bool in_use;                        /* In use or free? */
   };
 
+void dir_acquire_lock(struct dir *dir);
+void dir_release_lock(struct dir *dir);
+
 /* Helper function to acquire dir_lock. */
 void dir_acquire_lock(struct dir *dir) {
   lock_acquire(&dir->dir_lock);
@@ -39,7 +42,19 @@ void dir_release_lock(struct dir *dir) {
 bool
 dir_create (block_sector_t sector, size_t entry_cnt)
 {
-  return inode_create (sector, entry_cnt * sizeof (struct dir_entry), 1);
+  bool success = inode_create (sector, entry_cnt * sizeof (struct dir_entry), 1);
+  if (success) {
+    struct dir *curr_dir = dir_open(inode_open(sector));
+    struct dir_entry e;
+    e.inode_sector = sector;
+    e.in_use = false;
+
+    if (inode_write_at(dir_get_inode(curr_dir), &e, sizeof(e), 0) != sizeof(e)) {
+      success = false;
+    }
+    dir_close(curr_dir);
+  }
+  return success;
 }
 
 /* Opens and returns the directory for the given INODE, of which
@@ -137,10 +152,16 @@ dir_lookup (const struct dir *dir, const char *name,
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  if (lookup (dir, name, &e, NULL))
-    *inode = inode_open (e.inode_sector);
-  else
+  if (strcmp(name, "..") == 0) {
+    inode_read_at(dir->inode, &e, sizeof(struct dir_entry), 0);
+    *inode = inode_open(e.inode_sector);
+  } else if (strcmp(name, ".") == 0) {
+    *inode = inode_reopen(dir->inode);
+  } else if (lookup(dir, name, &e, NULL)) {
+    *inode = inode_open(e.inode_sector);
+  } else {
     *inode = NULL;
+  }
 
   return *inode != NULL;
 }
@@ -152,7 +173,7 @@ dir_lookup (const struct dir *dir, const char *name,
    Fails if NAME is invalid (i.e. too long) or a disk or memory
    error occurs. */
 bool
-dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
+dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool isdir)
 {
   struct dir_entry e;
   off_t ofs;
@@ -168,6 +189,9 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector)
   /* Check that NAME is not in use. */
   if (lookup (dir, name, NULL, NULL))
     goto done;
+  
+  /* If we are adding a directory. */
+  
 
   /* Set OFS to offset of free slot.
      If there are no free slots, then it will be set to the
