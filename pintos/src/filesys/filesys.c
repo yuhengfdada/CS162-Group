@@ -59,7 +59,7 @@ filesys_create (const char *name, off_t initial_size, bool isdir)
 
   bool success = (split_success && dir != NULL
                   && free_map_allocate (1, &inode_sector)
-                  && inode_create (inode_sector, initial_size,true)
+                  && inode_create (inode_sector, initial_size,isdir)
                   && dir_add (dir, filename, inode_sector,isdir));
   if (!success && inode_sector != 0)
     free_map_release (inode_sector, 1);
