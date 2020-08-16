@@ -31,6 +31,10 @@ enum
     SYS_ISDIR,                  /* Tests if a fd represents a directory. */
     SYS_INUMBER,                /* Returns the inode number for a fd. */
 
+    SYS_HIT_COUNT,              /* Get number of hits. */
+    SYS_ACCESS_COUNT,           /* Get number of accesses. */
+    SYS_RESET,                  /* Reset the buffer cache. */
+
     SYSCALL_NUM
   };
 

@@ -16,6 +16,7 @@
 #include "threads/malloc.h"
 #include "stdlib.h"
 #include "filesys/inode.h"
+#include "filesys/bufcache.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -54,6 +55,11 @@ static void syscall_readdir (struct intr_frame *f);
 static void syscall_isdir (struct intr_frame *f); 
 static void syscall_inumber (struct intr_frame *f); 
 
+/* Syscall for tests. */
+static void syscall_hit_count (struct intr_frame *f);
+static void syscall_access_count (struct intr_frame *f);
+static void syscall_reset (struct intr_frame *f);
+
 void
 syscall_init (void)
 {
@@ -81,7 +87,11 @@ syscall_init (void)
   syscalls[SYS_MKDIR]    = syscall_mkdir;
   syscalls[SYS_READDIR]  = syscall_readdir;
   syscalls[SYS_ISDIR]    = syscall_isdir;
-  syscalls[SYS_INUMBER]    = syscall_inumber;
+  syscalls[SYS_INUMBER]  = syscall_inumber;
+
+  syscalls[SYS_HIT_COUNT]  = syscall_hit_count;
+  syscalls[SYS_ACCESS_COUNT] = syscall_access_count;
+  syscalls[SYS_RESET]    = syscall_reset;
 }
 
 static void
@@ -229,11 +239,11 @@ static void syscall_read (struct intr_frame *f)
       } else {
         struct file *curr_file = found->curr_file;
         // adding the following two lines make us fail abt 40 more tests
-        /*
         struct inode *inode = file_get_inode (curr_file);
         if (!inode_isdir (inode))
-        */
-        f->eax = file_read(curr_file, buffer, size);
+          f->eax = file_read(curr_file, buffer, size);
+        else
+          f->eax = -1;
       }
     }
   }
@@ -260,11 +270,11 @@ static void syscall_write (struct intr_frame *f)
       } else {
         struct file *curr_file = found->curr_file;
         // adding the following two lines make us fail abt 40 more tests
-        /*
         struct inode *inode = file_get_inode (curr_file);
         if (!inode_isdir (inode))
-        */
-        f->eax = file_write(curr_file, buffer, size);
+          f->eax = file_write(curr_file, buffer, size);
+        else
+          f->eax = -1;
       }
     }
   }
@@ -414,9 +424,6 @@ syscall_inumber (struct intr_frame *f)
     f->eax = -1;
 }
 
-
-
-
 /* Check whether the pointer address is valid for not. */
 bool validate (uint32_t *args, int num)
 {
@@ -468,4 +475,24 @@ struct file_descriptor *find_fd (int fd)
     }
   }
   return found;
+}
+
+static void syscall_hit_count (struct intr_frame *f) {
+  f->eax = bufcache_hit_count();
+}
+
+static void syscall_access_count (struct intr_frame *f) {
+  f->eax = bufcache_access_count();
+}
+
+static void syscall_reset (struct intr_frame *f) {
+  bufcache_reset();
+}
+
+static void
+syscall_diskstat (struct intr_frame *f)
+{
+ uint32_t *args = (uint32_t *) f->esp;
+
+  f->eax = block_get_stats (fs_device, (long long *) args[1], (long long *) args[2]);
 }

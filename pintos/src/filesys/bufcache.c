@@ -24,6 +24,8 @@ struct bufcache{
     struct list lru_list;
     struct condition until_one_ready;
     unsigned num_ready; // Number of buffer cache entries that are ready
+    int num_hits;       // Number of hits
+    int num_accesses;   // Total number of accesses
 };
 
 /* The buffer cache maintained by OS. */
@@ -43,6 +45,8 @@ void bufcache_init(void)
     lock_init(& (bufcache.cache_lock));
     cond_init(& (bufcache.until_one_ready));
     bufcache.num_ready = NUM_ENTRIES;
+    bufcache.num_hits = 0;
+    bufcache.num_accesses = 0;
     for(int i = 0; i < NUM_ENTRIES; i++){
         cond_init(& (bufcache.entries[i].until_ready));
         bufcache.entries[i].dirty = false;
@@ -121,6 +125,8 @@ static void replace(struct bufcache_entry* entry, block_sector_t sector)
 static struct bufcache_entry* bufcache_access(block_sector_t sector, bool blind)
 {
     ASSERT(lock_held_by_current_thread(&bufcache.cache_lock));
+    bufcache.num_accesses += 1;
+    bool is_hit = true;
     while(true){
         struct bufcache_entry* match = find(sector);
         if(match != NULL){
@@ -129,10 +135,15 @@ static struct bufcache_entry* bufcache_access(block_sector_t sector, bool blind)
                 continue;
             }
             /* Move match to front. */
+            if (is_hit) {
+                bufcache.num_hits += 1;
+                is_hit = false;
+            }
             list_remove(&(match->lru_elem));
             list_push_front(&(bufcache.lru_list), &(match->lru_elem));
             return match;
         }
+        is_hit = false;
         struct bufcache_entry* to_evict = get_eviction_candidate();
         if(to_evict == NULL){
             cond_wait(&bufcache.until_one_ready, &bufcache.cache_lock);
@@ -176,4 +187,23 @@ void bufcache_flush(void)
         }
     }
     lock_release(&bufcache.cache_lock);
+}
+
+int bufcache_hit_count(void) {
+    return bufcache.num_hits;
+}
+
+int bufcache_access_count(void) {
+    return bufcache.num_accesses;
+}
+
+void bufcache_reset(void) {
+    bufcache.num_ready = NUM_ENTRIES;
+    bufcache.num_hits = 0;
+    bufcache.num_accesses = 0;
+    for(int i = 0; i < NUM_ENTRIES; i++){
+        bufcache.entries[i].dirty = false;
+        bufcache.entries[i].ready = true;
+        bufcache.entries[i].sector = INVALID_SECTOR;
+    }
 }
