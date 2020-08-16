@@ -281,11 +281,12 @@ dir_remove (struct dir *dir, const char *name)
     bool empty = true;
     for (ofs_remove = sizeof e_remove;
         inode_read_at (dir_remove->inode, &e_remove, sizeof e_remove, ofs_remove) == sizeof e_remove;
-        ofs_remove += sizeof e_remove)
+        ofs_remove += sizeof e_remove){
       if (e_remove.in_use)
         {
           empty = false;
           break;
+        }
         }
     dir_close(dir_remove);
 
