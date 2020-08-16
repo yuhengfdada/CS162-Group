@@ -13,9 +13,6 @@ struct dir
   {
     struct inode *inode;                /* Backing store. */
     off_t pos;                          /* Current position. */
-    struct dir *parent_dir;             // when we run into .. in path, we know where to look next
-    // struct lock lock_dir;               // add lock to dir struct for every subdirectory
-    //struct *file_descriptor;            // give directory a file descriptor too
   };
 
 /* A single directory entry. */
@@ -25,21 +22,6 @@ struct dir_entry
     char name[NAME_MAX + 1];            /* Null terminated file name. */
     bool in_use;                        /* In use or free? */
   };
-
-
-// void
-// dir_acquire_lock (struct dir *dir)
-// {
-//   lock_acquire (&(dir->lock_dir));
-// }
-
-// /* Release the lock of DIR. */
-// void
-// dir_release_lock (struct dir *dir)
-// {
-//   lock_release (&(dir->lock_dir));
-// }
-
 
 /* Creates a directory with space for ENTRY_CNT entries in the
    given SECTOR.  Returns true if successful, false on failure. */
@@ -54,13 +36,9 @@ dir_create (block_sector_t sector, size_t entry_cnt)
       e.inode_sector = sector;
       e.in_use = false;
 
-      /* Acquire dir lock */
-      // dir_acquire_lock (curr_dir);
       if (inode_write_at (dir_get_inode (curr_dir), &e, sizeof (e), 0) != sizeof (e))
         success = false;
 
-      /* Release dir lock */
-      // dir_release_lock (curr_dir);
       dir_close (curr_dir);
     }
   return success;
@@ -208,9 +186,6 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
       if (sub_dir == NULL)
         goto done;
 
-      /* Acquire curr_dir lock. */
-      // dir_acquire_lock (curr_dir);
-
       e_.in_use = false;
       e_.inode_sector = inode_get_inumber (dir_get_inode (dir));
       if (inode_write_at (sub_dir->inode, &e_, sizeof e_, 0) != sizeof e_)
@@ -259,8 +234,6 @@ dir_remove (struct dir *dir, const char *name)
   ASSERT (dir != NULL);
   ASSERT (name != NULL);
 
-  /* Acquire dir lock. */
-  // dir_acquire_lock (dir);
 
   /* Find directory entry. */
   if (!lookup (dir, name, &e, &ofs))
@@ -311,7 +284,6 @@ bool
 dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
 {
   struct dir_entry e;
-// dir_acquire_lock (dir);
   while (inode_read_at (dir->inode, &e, sizeof e, dir->pos) == sizeof e)
     {
       dir->pos += sizeof e;
@@ -322,9 +294,7 @@ dir_readdir (struct dir *dir, char name[NAME_MAX + 1])
         }
     }
   return false;
-  // dir_release_lock (dir);
 }
-
 
 /* Proj 3 Task 3 */
 static int get_next_part (char part[NAME_MAX + 1], const char **srcp)
