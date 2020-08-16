@@ -55,15 +55,6 @@ struct inode
     struct condition until_no_writers; // no read and write at the same time (might not be necessary)
   };
 
-struct inode_disk *
-get_inode_disk (const struct inode *inode)
-{
-  ASSERT (inode != NULL);
-  struct inode_disk *disk_inode = malloc (sizeof *disk_inode);
-  bufcache_read (inode_get_inumber (inode), (void *)disk_inode, 0, BLOCK_SECTOR_SIZE);
-  return disk_inode;
-}
-
 /* Returns the block device sector that contains byte offset POS
    within INODE.
    Returns -1 if INODE does not contain data for a byte at offset
@@ -591,7 +582,8 @@ bool
 inode_isdir (const struct inode *inode)
 {
   ASSERT (inode != NULL);
-  struct inode_disk *disk_inode = get_inode_disk (inode);
+  struct inode_disk *disk_inode = (struct inode_disk *)malloc(sizeof(struct inode_disk));
+  bufcache_read(inode_get_inumber(inode), disk_inode, 0, BLOCK_SECTOR_SIZE);
   bool isdir = disk_inode->isdir;
   free (disk_inode);
   return isdir;
