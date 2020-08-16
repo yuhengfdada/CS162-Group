@@ -188,3 +188,15 @@ inumber (int fd)
 {
   return syscall1 (SYS_INUMBER, fd);
 }
+
+int
+hit_count (void)
+{
+  return syscall0 (SYS_HIT_COUNT);
+}
+
+int
+access_count (void)
+{
+  return syscall0 (SYS_ACCESS_COUNT);
+}
