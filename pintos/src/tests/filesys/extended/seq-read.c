@@ -40,4 +40,5 @@ test_main (void)
     msg("First read access acount: %d", first_access_count);
     msg("Second read hit count : %d", second_hit_count);
     msg("Second read access acount: %d", second_access_count);
+    close(fd);
 }
