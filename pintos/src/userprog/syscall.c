@@ -229,11 +229,11 @@ static void syscall_read (struct intr_frame *f)
       } else {
         struct file *curr_file = found->curr_file;
         // adding the following two lines make us fail abt 40 more tests
-        /*
         struct inode *inode = file_get_inode (curr_file);
         if (!inode_isdir (inode))
-        */
-        f->eax = file_read(curr_file, buffer, size);
+          f->eax = file_read(curr_file, buffer, size);
+        else
+          f->eax = -1;
       }
     }
   }
@@ -260,11 +260,11 @@ static void syscall_write (struct intr_frame *f)
       } else {
         struct file *curr_file = found->curr_file;
         // adding the following two lines make us fail abt 40 more tests
-        /*
         struct inode *inode = file_get_inode (curr_file);
         if (!inode_isdir (inode))
-        */
-        f->eax = file_write(curr_file, buffer, size);
+          f->eax = file_write(curr_file, buffer, size);
+        else
+          f->eax = -1;
       }
     }
   }

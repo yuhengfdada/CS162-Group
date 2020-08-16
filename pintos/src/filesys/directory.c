@@ -76,7 +76,6 @@ dir_open (struct inode *inode)
     {
       dir->inode = inode;
       dir->pos = 0;
-      // lock_init(&dir->lock_dir);
       return dir;
     }
   else
@@ -304,8 +303,6 @@ dir_remove (struct dir *dir, const char *name)
   success = true;
 
  done:
-  /* Release dir lock. */
-  // dir_release_lock (dir);
   inode_close (inode);
   return success;
 }
