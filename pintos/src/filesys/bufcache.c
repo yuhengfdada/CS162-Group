@@ -196,3 +196,14 @@ int bufcache_hit_count(void) {
 int bufcache_access_count(void) {
     return bufcache.num_accesses;
 }
+
+void bufcache_reset(void) {
+    bufcache.num_ready = NUM_ENTRIES;
+    bufcache.num_hits = 0;
+    bufcache.num_accesses = 0;
+    for(int i = 0; i < NUM_ENTRIES; i++){
+        bufcache.entries[i].dirty = false;
+        bufcache.entries[i].ready = true;
+        bufcache.entries[i].sector = INVALID_SECTOR;
+    }
+}
