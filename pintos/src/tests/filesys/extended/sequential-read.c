@@ -5,12 +5,15 @@
 #include <random.h>
 #include <syscall.h>
 
-void
-test_main (void)
-{
-    void *buffer;
-    random_bytes(buffer, 4096 * 16);
-    CHECK (create())
+// void
+// test_main (void)
+// {
+//     int fd;
 
-}
+//     /* Write random bytes into the buffer. */
+    
+
+
+
+// }
 
