@@ -204,8 +204,8 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
     {
       bool parent_success = true;
       struct dir_entry e_;
-      struct dir *curr_dir = dir_open (inode_open (inode_sector));
-      if (curr_dir == NULL)
+      struct dir *sub_dir = dir_open (inode_open (inode_sector));
+      if (sub_dir == NULL)
         goto done;
 
       /* Acquire curr_dir lock. */
@@ -213,12 +213,10 @@ dir_add (struct dir *dir, const char *name, block_sector_t inode_sector, bool is
 
       e_.in_use = false;
       e_.inode_sector = inode_get_inumber (dir_get_inode (dir));
-      if (inode_write_at (curr_dir->inode, &e_, sizeof e_, 0) != sizeof e_)
+      if (inode_write_at (sub_dir->inode, &e_, sizeof e_, 0) != sizeof e_)
         parent_success = false;
 
-      /* Release curr_dir lock. */
-      // dir_release_lock (curr_dir);
-      dir_close (curr_dir);
+      dir_close (sub_dir);
 
       if (!parent_success)
         goto done;
@@ -272,28 +270,27 @@ dir_remove (struct dir *dir, const char *name)
   inode = inode_open (e.inode_sector);
   if (inode == NULL)
     goto done;
-  else if (inode_isdir(inode))
+  
+  if (inode_isdir(inode))
   {
-    struct dir *dir_remove = dir_open(inode);
-    struct dir_entry e_remove;
-    off_t ofs_remove;
+    struct dir *subdir_to_remove = dir_open(inode);
+    struct dir_entry e_in_subdir;
 
-    bool empty = true;
-    for (ofs_remove = sizeof e_remove;
-        inode_read_at (dir_remove->inode, &e_remove, sizeof e_remove, ofs_remove) == sizeof e_remove;
-        ofs_remove += sizeof e_remove)
-      if (e_remove.in_use)
-        {
-          empty = false;
-          break;
-        }
-    dir_close(dir_remove);
-
-    if (!empty)
+    bool empty_dir = true;
+    off_t ofs_remove = 0;
+    while(inode_read_at (inode, &e_in_subdir, sizeof e_in_subdir, ofs_remove) == sizeof e_in_subdir){
+      if (e_in_subdir.in_use){
+        empty_dir = false;
+        break;
+      }
+      ofs_remove += sizeof e_in_subdir;
+    }
+    dir_close(subdir_to_remove);
+    if (!empty_dir)
       goto done;
   }
 
-  /* Erase directory entry. */
+  /* Erase directory entry in parent dir structure. */
   e.in_use = false;
   if (inode_write_at (dir->inode, &e, sizeof e, ofs) != sizeof e)
     goto done;
@@ -306,6 +303,7 @@ dir_remove (struct dir *dir, const char *name)
   inode_close (inode);
   return success;
 }
+
 /* Reads the next directory entry in DIR and stores the name in
    NAME.  Returns true if successful, false if the directory
    contains no more entries. */

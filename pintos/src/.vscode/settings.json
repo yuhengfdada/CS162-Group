@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "*.inc": "c",
-        "free-map.h": "c"
+        "free-map.h": "c",
+        "cstdio": "c",
+        "deque": "c",
+        "string": "c",
+        "vector": "c"
     }
 }
