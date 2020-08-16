@@ -16,6 +16,7 @@
 #include "threads/malloc.h"
 #include "stdlib.h"
 #include "filesys/inode.h"
+#include "filesys/bufcache.h"
 
 static void syscall_handler (struct intr_frame *);
 
@@ -54,6 +55,10 @@ static void syscall_readdir (struct intr_frame *f);
 static void syscall_isdir (struct intr_frame *f); 
 static void syscall_inumber (struct intr_frame *f); 
 
+/* Syscall for tests. */
+static void syscall_hit_count (struct intr_frame *f);
+static void syscall_access_count (struct intr_frame *f);
+
 void
 syscall_init (void)
 {
@@ -81,7 +86,10 @@ syscall_init (void)
   syscalls[SYS_MKDIR]    = syscall_mkdir;
   syscalls[SYS_READDIR]  = syscall_readdir;
   syscalls[SYS_ISDIR]    = syscall_isdir;
-  syscalls[SYS_INUMBER]    = syscall_inumber;
+  syscalls[SYS_INUMBER]  = syscall_inumber;
+
+  syscalls[SYS_HIT_COUNT]  = syscall_hit_count;
+  syscalls[SYS_ACCESS_COUNT] = syscall_access_count;
 }
 
 static void
@@ -414,9 +422,6 @@ syscall_inumber (struct intr_frame *f)
     f->eax = -1;
 }
 
-
-
-
 /* Check whether the pointer address is valid for not. */
 bool validate (uint32_t *args, int num)
 {
@@ -468,4 +473,12 @@ struct file_descriptor *find_fd (int fd)
     }
   }
   return found;
+}
+
+static void syscall_hit_count (struct intr_frame *f) {
+  f->eax = bufcache_hit_count();
+}
+
+static void syscall_access_count (struct intr_frame *f) {
+  f->eax = bufcache_access_count();
 }
