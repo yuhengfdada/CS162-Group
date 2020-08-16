@@ -33,6 +33,7 @@ enum
 
     SYS_HIT_COUNT,              /* Get number of hits. */
     SYS_ACCESS_COUNT,           /* Get number of accesses. */
+    SYS_RESET,                  /* Reset the buffer cache. */
 
     SYSCALL_NUM
   };

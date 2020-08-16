@@ -200,3 +200,9 @@ access_count (void)
 {
   return syscall0 (SYS_ACCESS_COUNT);
 }
+
+void
+reset (void)
+{
+  return syscall0 (SYS_RESET);
+}

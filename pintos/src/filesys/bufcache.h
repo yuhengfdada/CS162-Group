@@ -10,5 +10,6 @@ void bufcache_flush(void);
 
 int bufcache_hit_count(void);
 int bufcache_access_count(void);
+void bufcache_reset(void);
 
 #endif

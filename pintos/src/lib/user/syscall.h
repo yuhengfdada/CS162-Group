@@ -49,5 +49,6 @@ int inumber (int fd);
 /* Test cases. */
 int hit_count(void);
 int access_count(void);
+void reset(void);
 
 #endif /* lib/user/syscall.h */

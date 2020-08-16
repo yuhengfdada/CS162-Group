@@ -58,6 +58,7 @@ static void syscall_inumber (struct intr_frame *f);
 /* Syscall for tests. */
 static void syscall_hit_count (struct intr_frame *f);
 static void syscall_access_count (struct intr_frame *f);
+static void syscall_reset (struct intr_frame *f);
 
 void
 syscall_init (void)
@@ -90,6 +91,7 @@ syscall_init (void)
 
   syscalls[SYS_HIT_COUNT]  = syscall_hit_count;
   syscalls[SYS_ACCESS_COUNT] = syscall_access_count;
+  syscalls[SYS_RESET]    = syscall_reset;
 }
 
 static void
@@ -481,4 +483,8 @@ static void syscall_hit_count (struct intr_frame *f) {
 
 static void syscall_access_count (struct intr_frame *f) {
   f->eax = bufcache_access_count();
+}
+
+static void syscall_reset (struct intr_frame *f) {
+  bufcache_reset();
 }
